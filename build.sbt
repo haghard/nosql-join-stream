@@ -34,6 +34,7 @@ useJGit
 enablePlugins(GitVersioning)
 
 val MongoDriverVersion = "3.0.2"
+val CassandraDriverVersion = "2.1.7"
 val ScalazStreamVersion = "0.7.1a"
 val RxScala = "0.25.0"
 val localMvnRepo = "/Volumes/Data/dev_build_tools/apache-maven-3.1.1/repository"
@@ -55,7 +56,7 @@ resolvers ++= Seq(
 
 libraryDependencies ++= Seq(
     "org.mongodb"            %   "mongo-java-driver"       %   MongoDriverVersion  withSources(),
-    "com.datastax.cassandra" %   "cassandra-driver-core"   %   "2.1.7",
+    "com.datastax.cassandra" %   "cassandra-driver-core"   %   CassandraDriverVersion withSources(),
     "org.scalaz.stream"      %%  "scalaz-stream"           %   ScalazStreamVersion withSources(),
     "io.reactivex"           %%  "rxscala"                 %   RxScala             withSources(),
     "log4j"                  %   "log4j"                   %   "1.2.14")
