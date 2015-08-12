@@ -27,7 +27,7 @@ scalacOptions ++= Seq(
   "-language:postfixOps",
   "-language:reflectiveCalls",
   "-Yno-adapted-args",
-  "-target:jvm-1.8"
+  "-target:jvm-1.7"
 )
 
 useJGit
