@@ -50,8 +50,7 @@ net.virtualvoid.sbt.graph.Plugin.graphSettings
 
 resolvers ++= Seq(
   "Local Maven Repository" at "file:///" + localMvnRepo,
-  "Scalaz" at "http://dl.bintray.com/scalaz/releases",
-  "Oncue" at "http://dl.bintray.com/oncue/releases"
+  "Scalaz" at "http://dl.bintray.com/scalaz/releases"
 )
 
 libraryDependencies ++= Seq(
@@ -65,8 +64,7 @@ libraryDependencies ++= Seq(
   "de.bwaldvogel"     %   "mongo-java-server" %   "1.4.1"   % "test" withSources(),
   "org.cassandraunit" %   "cassandra-unit"    %   "2.0.2.2" % "test",
   "org.specs2"        %%  "specs2-core"       %   "3.2"     % "test" withSources(),
-  "org.scalatest"     %%  "scalatest"         %   "2.1.4"   % "test",
-  "oncue.ermine"      %%  "ermine-parser"     %   "0.2.1-2" % "test" withSources()
+  "org.scalatest"     %%  "scalatest"         %   "2.1.4"   % "test"
 )
 
 scalacOptions ++= Seq(
