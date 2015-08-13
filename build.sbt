@@ -4,7 +4,7 @@ import bintray.Keys._
 
 organization := "com.haghard"
 
-name := "nosql-join-streams"
+name := "nosql-join-stream"
 
 version := "0.0.1-snapshot"
 
