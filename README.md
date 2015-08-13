@@ -6,3 +6,30 @@ Goals:
   * Provide support for 2 streaming libs: [ScalazStream](https://github.com/scalaz/scalaz-stream) and [RxScala](https://github.com/ReactiveX/RxScala.git)
 
 The main idea for Abstract algebraic data type design was taken from this [blog post](http://io.pellucid.com/blog/abstract-algebraic-data-type)
+
+
+Episode from mongo.channel.test.join.JoinCassandraSpec
+======================================================
+
+```scala
+  import dsl.cassandra._
+
+  val qSensors = for { q ← select("SELECT sensor FROM {0}") } yield q
+
+  def qTemperature(r: CRow) = for {
+    _ ← select("SELECT sensor, event_time, temperature FROM {0} WHERE sensor = ?")
+    _ ← fk[java.lang.Long]("sensor", r.getLong("sensor"))
+    q ← readConsistency(ConsistencyLevel.ONE)
+  } yield q
+  
+  //to get Process
+  val joinQuery = Join[CassandraProcess].join(qSensors, SENSORS, qTemperature, TEMPERATURE, KEYSPACE) { (l, r) ⇒
+    s"Sensor №${l.getLong("sensor")} - time: ${r.getLong("event_time")} temperature: ${r.getDouble("temperature")}"
+  }
+  
+  //to get Observable
+  val joinQuery = Join[CassandraObservable].join(qSensors, SENSORS, qTemperature, TEMPERATURE, KEYSPACE) { (l, r) ⇒
+    s"Sensor №${l.getLong("sensor")} - time: ${r.getLong("event_time")} temperature: ${r.getDouble("temperature")}"
+  }
+    
+```

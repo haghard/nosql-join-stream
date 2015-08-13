@@ -52,7 +52,7 @@ class JoinCassandraSpec extends WordSpecLike with Matchers with TemperatureEnvir
       implicit val client = Cluster.builder().addContactPointsWithPorts(cassandraHost).build
 
       val joinQuery = Join[CassandraProcess].join(qSensors, SENSORS, qTemperature, TEMPERATURE, KEYSPACE) { (l, r) ⇒
-        s"Sensor №${l.getLong("sensor")} - Temperature: ${r.getLong("event_time")} name: ${r.getDouble("temperature")}"
+        s"Sensor №${l.getLong("sensor")} - time: ${r.getLong("event_time")} Temperature: ${r.getDouble("temperature")}"
       }
 
       (for {
@@ -75,8 +75,9 @@ class JoinCassandraSpec extends WordSpecLike with Matchers with TemperatureEnvir
       val done = new CountDownLatch(1)
       implicit val client = Cluster.builder().addContactPointsWithPorts(cassandraHost).build
       val state = new AtomicReference(Vector.empty[String])
-      val query = Join[CassandraObservable].join(qSensors, SENSORS, qTemperature, TEMPERATURE, KEYSPACE) { (l, r) ⇒
-        s"Sensor №${l.getLong("sensor")} - time: ${r.getLong("event_time")} temp: ${r.getDouble("temperature")}"
+
+      val joinQuery = Join[CassandraObservable].join(qSensors, SENSORS, qTemperature, TEMPERATURE, KEYSPACE) { (l, r) ⇒
+        s"Sensor №${l.getLong("sensor")} - time: ${r.getLong("event_time")} temperature: ${r.getDouble("temperature")}"
       }
 
       val RxExecutor = ExecutionContextScheduler(ExecutionContext.fromExecutor(executor))
@@ -105,7 +106,7 @@ class JoinCassandraSpec extends WordSpecLike with Matchers with TemperatureEnvir
         }
       }
 
-      query
+      joinQuery
         .observeOn(RxExecutor)
         .subscribe(S)
 
