@@ -73,14 +73,18 @@ class JoinMongoSpec extends Specification {
       s"Primary-key:${l.get("index")} - val:[Foreign-key:${r.get("lang")} - ${r.get("name")}]"
     }
 
+    val pageSize = 7
     val count = new CountDownLatch(1)
     val responses = new AtomicLong(0)
-    val testSubs = new Subscriber[String] {
+
+    val S = new Subscriber[String] {
       override def onStart() = request(1)
       override def onNext(n: String) = {
-        logger.info(s"receive $n")
-        responses.incrementAndGet()
-        request(1)
+        logger.info(n)
+        if (responses.getAndIncrement() % pageSize == 0) {
+          logger.info(s"★ ★ ★ Fetched page:[$pageSize] ★ ★ ★ ")
+          request(pageSize)
+        }
       }
       override def onError(e: Throwable) = {
         logger.info(s"OnError: ${e.getMessage}")
@@ -92,8 +96,9 @@ class JoinMongoSpec extends Specification {
       }
     }
 
-    query.observeOn(ExecutionContextScheduler(ExecutionContext.fromExecutor(executor)))
-      .subscribe(testSubs)
+    query
+      .observeOn(ExecutionContextScheduler(ExecutionContext.fromExecutor(executor)))
+      .subscribe(S)
 
     count.await()
     responses.get === MongoIntegrationEnv.programmersSize
