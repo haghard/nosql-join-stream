@@ -73,7 +73,7 @@ package object join {
     }
 
     /**
-     * Performs parallel join, utilizes the whole pool
+     * Runs each inner query in parallel utilized executor
      */
     implicit object MongoO extends Joiner[MongoObservable] {
       override def join[A, B, C](outer: MongoObservable#Stream[A])(relation: A ⇒ MongoObservable#Stream[B])(f: (A, B) ⇒ C): MongoObservable#Stream[C] =
@@ -90,7 +90,7 @@ package object join {
     }
 
     /**
-     * Performs parallel join, utilizes the whole pool
+     * Runs each inner query in parallel utilized executor
      */
     implicit object CassandraO extends Joiner[CassandraObservable] {
       override def join[A, B, C](outer: Observable[A])(relation: (A) ⇒ Observable[B])(f: (A, B) ⇒ C): Observable[C] =
