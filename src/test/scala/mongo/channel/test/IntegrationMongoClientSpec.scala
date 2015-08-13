@@ -166,7 +166,7 @@ class IntegrationMongoClientSpec extends Specification {
       _ ← prodOrCat observe QueryLoggerSink to sink
     } yield ())
       .onFailure { th ⇒ logger.debug(s"Failure: ${th.getMessage}"); halt }
-      .onComplete { eval(Task.delay(logger.debug(s"Interaction has been completed"))) }
+      .onComplete { eval(Task.delay(logger.debug("Interaction has been completed"))) }
       .runLog.run
 
     logger.info(buffer)

@@ -28,7 +28,7 @@ import com.datastax.driver.core.{ Cluster, ConsistencyLevel, Row ⇒ CRow }
 import mongo.channel.test.cassandra.TemperatureEnviroment
 import rx.lang.scala.schedulers.ExecutionContextScheduler
 import scala.concurrent.ExecutionContext
-import scalaz.stream.{ channel, Process, io }
+import scalaz.stream.{ Process, io }
 
 class JoinCassandraSpec extends WordSpecLike with Matchers with TemperatureEnviroment {
   import dsl.cassandra._

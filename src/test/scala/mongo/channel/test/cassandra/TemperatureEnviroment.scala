@@ -44,7 +44,7 @@ trait TemperatureEnviroment extends BeforeAndAfterAll { this: Suite ⇒
 
   val sensors: List[JLong] = List(1l, 2l, 3l, 4l, 5l, 6l, 7l, 8l, 9l, 10l)
 
-  val measureSize = 10 * sensors.size
+  val measureSize = 100
 
   @tailrec private def retry[T](n: Int)(f: ⇒ T): T =
     Try(f) match {
