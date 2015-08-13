@@ -8,8 +8,9 @@ Goals:
 The main idea for Abstract algebraic data type design was taken from this [blog post](http://io.pellucid.com/blog/abstract-algebraic-data-type)
 
 
-Episode from mongo.channel.test.join.JoinCassandraSpec
-======================================================
+Example 
+===============================
+from mongo.channel.test.join.JoinCassandraSpec
 
 ```scala
   import dsl.cassandra._
