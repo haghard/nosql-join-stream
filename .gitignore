@@ -2,7 +2,6 @@ target/
 project/target/
 project/project/target/
 logs/
-cas-tmp/
 
 # IntelliJ
 .idea/

@@ -73,11 +73,16 @@ trait CassandraEnviromentLifecycle extends BeforeAndAfterAll { this: Suite ⇒
     session.execute(createTableLangs)
     session.execute(createTableProgrammers)
 
-    val langs = List(session.prepare(writeLangs).bind(1l: JLong, "C++"), session.prepare(writeLangs).bind(2l: JLong, "Java")).asJava
+    val langs = List(
+      session.prepare(writeLangs).bind(1l: JLong, "C++"),
+      session.prepare(writeLangs).bind(2l: JLong, "Java")
+    ).asJava
 
-    val programmers = List(session.prepare(writeProgrammers).bind(1l: JLong, "Jack", 1l: JLong),
+    val programmers = List(
+      session.prepare(writeProgrammers).bind(1l: JLong, "Jack", 1l: JLong),
       session.prepare(writeProgrammers).bind(2l: JLong, "John", 2l: JLong),
-      session.prepare(writeProgrammers).bind(3l: JLong, "Jerry", 1l: JLong)).asJava
+      session.prepare(writeProgrammers).bind(3l: JLong, "Jerry", 1l: JLong)
+    ).asJava
 
     session.execute(new BatchStatement().addAll(langs))
     session.execute(new BatchStatement().addAll(programmers))
