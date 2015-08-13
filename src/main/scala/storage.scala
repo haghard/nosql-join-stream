@@ -51,7 +51,7 @@ package object storage {
 
     protected def extract(c: T#Cursor): E = {
       val r = c.next().asInstanceOf[E]
-      log.info(s"fetch $r")
+      log.info(s" Obs:${##} fetch $r")
       r
     }
 
@@ -122,7 +122,7 @@ package object storage {
             qs.skip.foreach(c.skip)
             qs.limit.foreach(c.limit)
           }
-          logger.debug(s"Query-settings: Sort:[ ${qs.sort} ] Skip:[ ${qs.skip} ] Limit:[ ${qs.limit} ] Query:[ ${qs.q} ]")
+          logger.debug(s"★ ★ ★ Create Process-Fetcher for query: Sort:[ ${qs.sort} ] Skip:[ ${qs.skip} ] Limit:[ ${qs.limit} ] Query:[ ${qs.q} ]")
           cursor
         })(c ⇒ Task.delay(c.close())) { c ⇒
           Task {
@@ -162,7 +162,7 @@ package object storage {
               qs.skip.foreach(c.skip)
               qs.limit.foreach(c.limit)
             }
-            log.debug(s"Query-settings: Sort:[${qs.sort}] Skip:[${qs.skip}] Limit:[${qs.limit}] Query:[${qs.q}]")
+            log.info(s"★ ★ ★ Create Observable-Fetcher for query: Query: Sort:[${qs.sort}] Skip:[${qs.skip}] Limit:[${qs.limit}] Query:[${qs.q}] ★ ★ ★")
             cursor
           }
         } recover {
@@ -219,35 +219,35 @@ package object storage {
         io.resource(Task.delay {
           val qs = implicitly[QueryInterpreter[CassandraProcess]].interpret(q)
           val query = MessageFormat.format(qs.q, c)
-          logger.debug(s"Query-settings: Query:[ $query ] Param: [ ${qs.v} ]")
+          logger.info(s"★ ★ ★ Create Process-Fetcher for query: Query:[ $query ] Param: [ ${qs.v} ] ★ ★ ★")
           qs.v.fold(session.execute(session.prepare(query).setConsistencyLevel(qs.consistencyLevel).bind()).iterator) { r ⇒
             session.execute(session.prepare(query).setConsistencyLevel(qs.consistencyLevel).bind(r.v)).iterator
           }
         })(c ⇒ Task.delay(session.close())) { c ⇒
-          Task {
+          Task.delay {
             if (c.hasNext) {
               val r = c.next
               logger.debug(s"fetch $r")
               r.asInstanceOf[T]
             } else throw Cause.Terminated(Cause.End)
-          }(exec)
+          }
         }
 
       override def outerR(q: QFree[CassandraReadSettings], c: String, r: String,
                           log: Logger, exec: ExecutorService): (Cluster) ⇒ DBChannel[Cluster, Row] = {
         client ⇒
-          DBChannel[CassandraProcess#Client, CassandraProcess#Record](Process.eval(Task.now { client: CassandraProcess#Client ⇒
-            Task(cassandra[CassandraProcess#Record](q, client.connect(r), c, log, exec))
-          }))
+          DBChannel[CassandraProcess#Client, CassandraProcess#Record](Process.eval(Task { client: CassandraProcess#Client ⇒
+            Task.delay(cassandra[CassandraProcess#Record](q, client.connect(r), c, log, exec))
+          }(exec)))
       }
 
       override def innerR(r: (Row) ⇒ QFree[CassandraReadSettings], c: String, res: String,
                           log: Logger, exec: ExecutorService): (Cluster) ⇒ (Row) ⇒ DBChannel[Cluster, Row] = {
         client ⇒
           parent ⇒
-            DBChannel[CassandraProcess#Client, CassandraProcess#Record](Process.eval(Task.now { client: CassandraProcess#Client ⇒
-              Task(cassandra[CassandraProcess#Record](r(parent), client.connect(res), c, log, exec))
-            }))
+            DBChannel[CassandraProcess#Client, CassandraProcess#Record](Process.eval(Task { client: CassandraProcess#Client ⇒
+              Task.delay(cassandra[CassandraProcess#Record](r(parent), client.connect(res), c, log, exec))
+            }(exec)))
       }
     }
 
@@ -259,7 +259,7 @@ package object storage {
             val qs = interpreter.interpret(q)
             val query = MessageFormat.format(qs.q, collection)
             val session = c.connect(resource)
-            log.debug(s"Query-settings: Query:[ $query ] Param: [ ${qs.v} ]")
+            log.info(s"★ ★ ★ Create Observable-Fetcher for query: Query:[ $query ] Param: [ ${qs.v} ] ★ ★ ★")
             qs.v.fold(session.execute(session.prepare(query).setConsistencyLevel(qs.consistencyLevel).bind()).iterator()) { r ⇒
               session.execute(session.prepare(query).setConsistencyLevel(qs.consistencyLevel).bind(r.v)).iterator()
             }

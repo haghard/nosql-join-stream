@@ -57,7 +57,8 @@ class JoinMongoSpec extends Specification {
 
     p.run.run
     logger.info("Join with MongoProcessStream result:" + buffer)
-    buffer.size === 10
+
+    buffer.size === MongoIntegrationEnv.programmersSize
   }
 
   "Join with MongoObservable" in new MongoClientJoinEnviromentLifecycle {
@@ -95,6 +96,6 @@ class JoinMongoSpec extends Specification {
       .subscribe(testSubs)
 
     count.await()
-    responses.get === 10
+    responses.get === MongoIntegrationEnv.programmersSize
   }
 }

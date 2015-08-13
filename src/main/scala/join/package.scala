@@ -41,7 +41,7 @@ package object join {
   final case class Join[T <: StorageModule: Joiner: Storage](implicit pool: ExecutorService, client: T#Client, t: ClassTag[T]) {
     import org.apache.log4j.Logger
 
-    implicit val logger = Logger.getLogger(s"${t.runtimeClass.getName.dropWhile(_ != '$').drop(1)}-joiner")
+    implicit val logger = Logger.getLogger(s"${t.runtimeClass.getName.dropWhile(_ != '$').drop(1)}-Producer-join")
 
     def join[A](leftQ: QFree[T#ReadSettings], lCollection: String,
                 rightQ: T#Record ⇒ QFree[T#ReadSettings], rCollection: String,
@@ -55,10 +55,6 @@ package object join {
     }
   }
 
-  /**
-   *
-   * @tparam T
-   */
   private[join] trait Joiner[T <: StorageModule] {
     def join[A, B, C](l: T#Stream[A])(relation: A ⇒ T#Stream[B])(f: (A, B) ⇒ C): T#Stream[C]
   }
@@ -68,21 +64,34 @@ package object join {
     import join.mongo.{ MongoObservable, MongoProcess }
     import join.cassandra.{ CassandraObservable, CassandraProcess }
 
+    /**
+     * Performs sequentual join
+     */
     implicit object MongoP extends Joiner[MongoProcess] {
       def join[A, B, C](outer: MongoProcess#Stream[A])(relation: A ⇒ MongoProcess#Stream[B])(f: (A, B) ⇒ C): MongoProcess#Stream[C] =
         for { id ← outer; rs ← relation(id) |> scalaz.stream.process1.lift(f(id, _)) } yield rs
     }
 
+    /**
+     * Performs parallel join, utilizes the whole pool
+     */
     implicit object MongoO extends Joiner[MongoObservable] {
       override def join[A, B, C](outer: MongoObservable#Stream[A])(relation: A ⇒ MongoObservable#Stream[B])(f: (A, B) ⇒ C): MongoObservable#Stream[C] =
         for { id ← outer; rs ← relation(id).map(f(id, _)) } yield rs
     }
 
+    /**
+     * Performs sequentual join
+     */
     implicit object CassandraP extends Joiner[CassandraProcess] {
-      override def join[A, B, C](outer: CassandraProcess#Stream[A])(relation: A ⇒ CassandraProcess#Stream[B])(f: (A, B) ⇒ C): CassandraProcess#Stream[C] =
-        for { id ← outer; rs ← relation(id) |> scalaz.stream.process1.lift(f(id, _)) } yield rs
+      override def join[A, B, C](outer: CassandraProcess#Stream[A])(relation: A ⇒ CassandraProcess#Stream[B])(f: (A, B) ⇒ C): CassandraProcess#Stream[C] = {
+        for { id ← outer; rs ← relation(id) |> scalaz.stream.process1.lift(f(id, _))} yield rs
+      }
     }
 
+    /**
+     * Performs parallel join, utilizes the whole pool
+     */
     implicit object CassandraO extends Joiner[CassandraObservable] {
       override def join[A, B, C](outer: Observable[A])(relation: (A) ⇒ Observable[B])(f: (A, B) ⇒ C): Observable[C] =
         for { id ← outer; rs ← relation(id).map(f(id, _)) } yield rs

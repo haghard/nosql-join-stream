@@ -20,100 +20,99 @@ import scalaz.concurrent.Task
 import rx.lang.scala.Subscriber
 import java.util.function.UnaryOperator
 import java.util.concurrent.CountDownLatch
-import java.util.concurrent.atomic.AtomicReference
+import java.util.concurrent.atomic.{ AtomicLong, AtomicReference }
 
 import org.scalatest.{ Matchers, WordSpecLike }
 import join.cassandra.{ CassandraObservable, CassandraProcess }
 import com.datastax.driver.core.{ Cluster, ConsistencyLevel, Row ⇒ CRow }
-import mongo.channel.test.cassandra.CassandraEnviromentLifecycle
+import mongo.channel.test.cassandra.TemperatureEnviroment
 import rx.lang.scala.schedulers.ExecutionContextScheduler
 import scala.concurrent.ExecutionContext
-import scalaz.stream.{ Process, io }
+import scalaz.stream.{ channel, Process, io }
 
-class JoinCassandraSpec extends WordSpecLike with Matchers with CassandraEnviromentLifecycle {
+class JoinCassandraSpec extends WordSpecLike with Matchers with TemperatureEnviroment {
   import dsl.cassandra._
+
+  val selectSensor = "SELECT sensor FROM {0}"
+  val qSensors = for { q ← select(selectSensor) } yield q
+
+  def qTemperature(r: CRow) = for {
+    _ ← select("SELECT sensor, event_time, temperature FROM {0} WHERE sensor = ?")
+    _ ← fk[java.lang.Long]("sensor", r.getLong("sensor"))
+    q ← readConsistency(ConsistencyLevel.ONE)
+  } yield q
 
   "Join with CassandraProcess" should {
     "have run" in {
       val P = Process
       val buffer = mutable.Buffer.empty[String]
-      val Sink = io.fillBuffer(buffer)
+      val BufferSink = io.fillBuffer(buffer)
+      val LoggerS = scalaz.stream.sink.lift[Task, String] { line ⇒ Task.delay(logger.info(line)) }
+
       implicit val client = Cluster.builder().addContactPointsWithPorts(cassandraHost).build
 
-      val qLang = for {
-        q ← select("SELECT id, name FROM {0}")
-      } yield q
-
-      def qProg(r: CRow) = for {
-        _ ← select("SELECT * FROM {0} WHERE lang = ? allow filtering")
-        _ ← fk[java.lang.Long]("id_lang", r.getLong("id"))
-        q ← readConsistency(ConsistencyLevel.ONE)
-      } yield q
-
-      val query = Join[CassandraProcess].join(qLang, LANGS, qProg, PROGRAMMERS, "world") { (l, r) ⇒
-        s"Pk: ${l.getLong("id")} lang: ${l.getString("name")} name: ${r.getString(2)}"
+      val joinQuery = Join[CassandraProcess].join(qSensors, SENSORS, qTemperature, TEMPERATURE, KEYSPACE) { (l, r) ⇒
+        s"Sensor №${l.getLong("sensor")} - Temperature: ${r.getLong("event_time")} name: ${r.getDouble("temperature")}"
       }
 
       (for {
-        row ← P.eval(Task.delay(client)) through query.out
-        _ ← row to Sink
+        row ← P.eval(Task.now(client)) through joinQuery.out
+        _ ← row observe LoggerS to BufferSink //thread safe since we write in single thread
       } yield ())
         .onFailure { th ⇒ logger.debug(s"Failure: ${th.getMessage}"); P.halt }
-        .onComplete { P.eval(Task.delay { client.close(); logger.debug("Join has been completed") }) }
+        .onComplete { P.eval_(Task.delay { client.close(); logger.debug("Join has been completed") }) }
         .runLog.run
 
-      logger.info("Result:" + buffer)
-
-      if (buffer.size != 3) fail("Error in Join with CassandraProcess")
+      logger.info("Join with CassandraProcess: " + buffer.size)
+      if (buffer.size != measureSize * sensors.size)
+        fail("Error in Join with CassandraProcess")
     }
   }
 
-  "JoinG with CassandraObservable" should {
+  "Join with CassandraObservable" should {
     "have run" in {
-      val count = new CountDownLatch(1)
-      val state = new AtomicReference(Vector[String]())
+      val pageSize = 7
+      val done = new CountDownLatch(1)
       implicit val client = Cluster.builder().addContactPointsWithPorts(cassandraHost).build
-
-      val qLang = for {
-        q ← select("SELECT id, name FROM {0}")
-      } yield q
-
-      def qProg(r: CRow) = for {
-        _ ← select("SELECT * FROM {0} WHERE lang = ? allow filtering")
-        _ ← fk[java.lang.Long]("id_lang", r.getLong("id"))
-        q ← readConsistency(ConsistencyLevel.ONE)
-      } yield q
-
-      val query = Join[CassandraObservable].join(qLang, LANGS, qProg, PROGRAMMERS, "world") { (l, r) ⇒
-        s"Pk: ${l.getLong("id")} lang: ${l.getString("name")} name: ${r.getString(2)}"
+      val state = new AtomicReference(Vector.empty[String])
+      val query = Join[CassandraObservable].join(qSensors, SENSORS, qTemperature, TEMPERATURE, KEYSPACE) { (l, r) ⇒
+        s"Sensor №${l.getLong("sensor")} - time: ${r.getLong("event_time")} temp: ${r.getDouble("temperature")}"
       }
 
-      val testSubs = new Subscriber[String] {
-        override def onStart() = request(1)
+      val RxExecutor = ExecutionContextScheduler(ExecutionContext.fromExecutor(executor))
+      val count = new AtomicLong(0)
+      val S = new Subscriber[String] {
+        override def onStart() = request(pageSize)
+
         override def onNext(next: String) = {
-          logger.info(s"receive $next")
+          logger.info(s"$next")
           state.updateAndGet(new UnaryOperator[Vector[String]]() {
             override def apply(t: Vector[String]) = t :+ next
           })
-          request(1)
+          if (count.getAndIncrement() % pageSize == 0) {
+            logger.info(s"★ ★ ★ Fetched page:[$pageSize] ★ ★ ★ ")
+            request(pageSize)
+          }
         }
         override def onError(e: Throwable) = {
           logger.info(s"OnError: ${e.getMessage}")
-          count.countDown()
+          done.countDown()
         }
         override def onCompleted() = {
           logger.info("Join has been completed")
           client.close()
-          count.countDown()
+          done.countDown()
         }
       }
 
-      query.observeOn(ExecutionContextScheduler(ExecutionContext.fromExecutor(executor)))
-        .subscribe(testSubs)
+      query
+        .observeOn(RxExecutor)
+        .subscribe(S)
 
-      count.await()
-      logger.info("Result:" + state)
-      if (state.get().size != 3) fail("Error in Join with CassandraObservable")
+      done.await()
+      logger.info("Join with CassandraObservable: " + state.get())
+      if (count.get() != measureSize * sensors.size)
+        fail("Error in Join with CassandraObservable")
     }
   }
 }

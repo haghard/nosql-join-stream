@@ -55,6 +55,7 @@ object MongoIntegrationEnv {
   val PRODUCER = "producer"
   val PROGRAMMERS = "programmers"
   val LANGS = "langs"
+  val programmersSize = 100
 
   def sinkWithBuffer[T] = {
     val buffer: Buffer[T] = Buffer.empty
@@ -81,7 +82,7 @@ object MongoIntegrationEnv {
         .append("popularity_factor", ThreadLocalRandom.current().nextInt(0, 100)))
     }
 
-    for (i ← 1 to 10) {
+    for (i ← 1 to programmersSize) {
       programmers.insert(new BasicDBObject("name", s"$letter-$letter-$letter")
         .append("lang", ThreadLocalRandom.current().nextInt(langs.size)))
     }
