@@ -32,7 +32,7 @@ package object cassandra {
   import com.datastax.driver.core.ConsistencyLevel
 
   case class CassandraParamValue(name: String, v: AnyRef, clazz: Class[_])
-  case class CassandraReadSettings(q: String, v: Option[CassandraParamValue] = None,
+  case class CassandraReadSettings(query: String, v: Option[CassandraParamValue] = None,
                                    consistencyLevel: ConsistencyLevel = ConsistencyLevel.ONE)
 
   trait CassandraObservable extends StorageModule {

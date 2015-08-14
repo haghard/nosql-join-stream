@@ -5,6 +5,7 @@ Goals:
   * To demonstrate power of design based on "Abstract algebraic data type"
   * Provide support for streaming libs: [ScalazStream](https://github.com/scalaz/scalaz-stream) and [RxScala](https://github.com/ReactiveX/RxScala.git) in join process
   * Provide support for MongoDb and Cassandra with single API
+  * Resource safety
 
 The main idea for "Abstract algebraic data type" pattern was taken from this [blog post](http://io.pellucid.com/blog/abstract-algebraic-data-type)
 

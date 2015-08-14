@@ -222,11 +222,11 @@ package object storage {
       private def cassandraR[T](q: QFree[CassandraReadSettings], session: Session,
                                 c: String, logger: Logger): Process[Task, T] =
         io.resource(Task.delay {
-          val qs = implicitly[QueryInterpreter[CassandraProcess]].interpret(q)
-          val query = MessageFormat.format(qs.q, c)
-          logger.debug(s"★ ★ ★ Create Process-Fetcher for query: Query:[ $query ] Param: [ ${qs.v} ] ★ ★ ★")
-          qs.v.fold(session.execute(session.prepare(query).setConsistencyLevel(qs.consistencyLevel).bind()).iterator) { r ⇒
-            session.execute(session.prepare(query).setConsistencyLevel(qs.consistencyLevel).bind(r.v)).iterator
+          val settings = implicitly[QueryInterpreter[CassandraProcess]].interpret(q)
+          val query = MessageFormat.format(settings.query, c)
+          logger.debug(s"★ ★ ★ Create Process-Fetcher for query: Query:[ $query ] Param: [ ${settings.v} ] ★ ★ ★")
+          settings.v.fold(session.execute(session.prepare(query).setConsistencyLevel(settings.consistencyLevel).bind()).iterator) { r ⇒
+            session.execute(session.prepare(query).setConsistencyLevel(settings.consistencyLevel).bind(r.v)).iterator
           }
         })(c ⇒ Task.delay(session.close())) { c ⇒
           Task.delay {
@@ -262,7 +262,7 @@ package object storage {
         lazy val cursor: Option[CassandraObservable#Cursor] = (Try {
           Option {
             val qs = interpreter.interpret(q)
-            val query = MessageFormat.format(qs.q, coll)
+            val query = MessageFormat.format(qs.query, coll)
             val session = client.connect(resource)
             log.debug(s"★ ★ ★ Create Observable-Fetcher for query: Query:[ $query ] Param: [ ${qs.v} ] ★ ★ ★")
             qs.v.fold(session.execute(session.prepare(query).setConsistencyLevel(qs.consistencyLevel).bind()).iterator()) { r ⇒
