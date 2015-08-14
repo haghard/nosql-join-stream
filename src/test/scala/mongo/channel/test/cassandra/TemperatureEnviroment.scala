@@ -59,8 +59,8 @@ trait TemperatureEnviroment extends BeforeAndAfterAll { this: Suite ⇒
     """
 
   /**
-   * Sharded key (day, sensor)
-   * Clustered key event_time
+   * Partition key - day, sensor)
+   * Clustering key - event_time
    * Optimized for search based on (day, sensor)
    *
    */
@@ -89,8 +89,8 @@ trait TemperatureEnviroment extends BeforeAndAfterAll { this: Suite ⇒
    * | 2 |37.0|36.0|37.7|
    * +---+----+----+----+
    *
-   * Sharded key sensor
-   * Clustered key event_time
+   * Partition key - sensor
+   * Clustering key - event_time
    *
    * Optimal structure for filter/search temperature by sensor
    *
