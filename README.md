@@ -9,7 +9,7 @@ Goals:
 
 The main idea for "Abstract algebraic data type" pattern was taken from this [blog post](http://io.pellucid.com/blog/abstract-algebraic-data-type)
 
-Example 
+Example for cassandra
 ===============================
 from mongo.channel.test.join.JoinCassandraSpec
 
@@ -34,4 +34,26 @@ from mongo.channel.test.join.JoinCassandraSpec
     s"Sensor №${l.getLong("sensor")} - time: ${r.getLong("event_time")} temperature: ${r.getDouble("temperature")}"
   }
     
+```
+
+Example for mongo
+===============================
+```scala
+  import mongo._
+  import dsl.mongo._
+  
+  val qLang = for { q ← "index" $gte 0 $lte 5 } yield q
+  
+  def qProg(outer: DBObject) = for { q ← "lang" $eq outer.get("index").asInstanceOf[Int] } yield q
+  
+  //to get Process
+  val joinQuery = Join[MongoProcess].join(qLang, LANGS, qProg(_), PROGRAMMERS, TEST_DB) { (l, r) ⇒
+    s"PK:${l.get("index")} - FK:${r.get("lang")} - ${r.get("name")}"
+  }
+
+  //to get Observable
+  val query = Join[MongoObservable].join(qLang, LANGS, qProg(_), PROGRAMMERS, TEST_DB) { (l, r) ⇒
+    s"PK:${l.get("index")} - [FK:${r.get("lang")} - ${r.get("name")}]"
+  }
+  
 ```
