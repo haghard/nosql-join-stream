@@ -38,6 +38,8 @@ from mongo.channel.test.join.JoinCassandraSpec
 
 Example for mongo
 ===============================
+from mongo.channel.test.join.JoinMongoSpec
+
 ```scala
   import mongo._
   import dsl.mongo._
