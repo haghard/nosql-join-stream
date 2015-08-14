@@ -48,8 +48,8 @@ package object join {
                 resource: String)(f: (T#Record, T#Record) ⇒ A): T#Stream[A] = {
 
       val storage = Storage[T]
-      val outer = storage.outerR(leftQ, lCollection, resource, logger, pool)(client)
-      val relation = storage.innerR(rightQ, rCollection, resource, logger, pool)(client)
+      val outer = storage.outer(leftQ, lCollection, resource, logger, pool)(client)
+      val relation = storage.inner(rightQ, rCollection, resource, logger, pool)(client)
 
       Joiner[T].join[T#Record, T#Record, A](outer)(relation)(f)
     }

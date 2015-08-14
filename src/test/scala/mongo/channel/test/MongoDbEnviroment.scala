@@ -14,12 +14,25 @@
 
 package mongo.channel.test
 
-trait MongoDBEnviromentLifecycle[T] extends org.specs2.mutable.Before {
+import com.mongodb.MongoClient
+import de.bwaldvogel.mongo.MongoServer
+import org.specs2.mutable.After
+
+trait MongoDbEnviroment extends After {
   import MongoIntegrationEnv._
+  val logger = org.apache.log4j.Logger.getLogger("MongoStreams-Mongo-Enviroment")
+  var client: MongoClient = _
+  var server: MongoServer = _
 
-  protected lazy val Resource = mockDB()
+  def initMongo = {
+    val r = prepareMockMongo()
+    client = r._1
+    server = r._2
+  }
 
-  protected val (sink, buffer) = sinkWithBuffer[T]
-
-  override def before = Resource
+  override def after = {
+    client.close
+    server.shutdown
+    logger.info("Mongo client and server have been closed")
+  }
 }

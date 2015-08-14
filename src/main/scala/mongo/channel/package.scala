@@ -243,7 +243,7 @@ package object channel {
   }
 
   implicit object defaultChannel extends DBChannelFactory[MongoClient] {
-    override def createChannel(arg: String \/ QuerySetting)(implicit pool: ExecutorService): DBChannel[MongoClient, DBObject] =
+    override def createChannel(arg: String \/ QuerySetting)(implicit ES: ExecutorService): DBChannel[MongoClient, DBObject] =
       arg.fold({ error ⇒ DBChannel(eval(Task.fail(new MongoException(error)))) }, { setting ⇒
         DBChannel(eval(Task.now { client: MongoClient ⇒
           Task {
@@ -259,8 +259,7 @@ package object channel {
                   setting.limit.foreach(c.limit)
                   setting.maxTimeMS.foreach(c.maxTime(_, TimeUnit.MILLISECONDS))
                 }
-                val rpLine = setting.readPref.fold("Empty") { p ⇒ p.asMongoDbReadPreference.toString }
-                logger.debug(s"Query:[${setting.q}] ReadPrefs:[$rpLine}] Server:[${cursor.getServerAddress}] Sort:[${setting.sortQuery}] Limit:[${setting.limit}] Skip:[${setting.skip}]")
+                logger.debug(s"Query:[${setting.q}] ReadPrefs:[${cursor.getReadPreference}}] Server:[${cursor.getServerAddress}] Sort:[${setting.sortQuery}] Limit:[${setting.limit}] Skip:[${setting.skip}]")
                 cursor
               })(c ⇒ Task.delay(c.close())) { c ⇒
                 Task.delay {
@@ -268,7 +267,7 @@ package object channel {
                   else throw Cause.Terminated(Cause.End)
                 }
               }
-          }(pool)
+          }(ES)
         }))
       })
   }

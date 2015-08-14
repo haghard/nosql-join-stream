@@ -37,7 +37,8 @@ object MongoIntegrationEnv {
 
   private val logger = org.apache.log4j.Logger.getLogger("mongo-streams")
 
-  implicit val executor = Executors.newFixedThreadPool(5, new NamedThreadFactory("mongo-test-executor"))
+  implicit val executor = Executors.newFixedThreadPool(Runtime.getRuntime.availableProcessors(),
+    new NamedThreadFactory("mongo-executor"))
 
   val categoryIds = lift { obj: DBObject ⇒
     (obj.get("name").asInstanceOf[String],

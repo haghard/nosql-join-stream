@@ -19,7 +19,7 @@ import java.util.concurrent.atomic.AtomicLong
 
 import com.mongodb.DBObject
 
-import mongo.channel.test.{ MongoClientJoinEnviromentLifecycle, MongoIntegrationEnv }
+import mongo.channel.test.{ MongoDbEnviroment, MongoIntegrationEnv }
 import org.specs2.mutable.Specification
 import rx.lang.scala.Subscriber
 import rx.lang.scala.schedulers.ExecutionContextScheduler
@@ -27,7 +27,8 @@ import rx.lang.scala.schedulers.ExecutionContextScheduler
 import scala.collection.mutable
 import scala.concurrent.ExecutionContext
 import scalaz.concurrent.Task
-import scalaz.stream.{ Process, io }
+import scalaz.stream.Process._
+import scalaz.stream.io
 
 class JoinMongoSpec extends Specification {
   import MongoIntegrationEnv._
@@ -36,32 +37,30 @@ class JoinMongoSpec extends Specification {
   import mongo._
   import dsl.mongo._
 
-  "Join with MongoProcess" in new MongoClientJoinEnviromentLifecycle {
+  "Join with MongoProcess" in new MongoDbEnviroment {
     initMongo
 
     val buffer = mutable.Buffer.empty[String]
-    val Sink = io.fillBuffer(buffer)
+    val SinkBuffer = io.fillBuffer(buffer)
     implicit val c = client
 
     val qLang = for { q ← "index" $gte 0 $lte 5 } yield q
-    def qProg(left: DBObject) = for { q ← "lang" $eq left.get("index").asInstanceOf[Int] } yield q
+    def qProg(outer: DBObject) = for { q ← "lang" $eq outer.get("index").asInstanceOf[Int] } yield q
 
-    val query = Join[MongoProcess].join(qLang, LANGS, qProg(_), PROGRAMMERS, TEST_DB) { (l, r) ⇒
-      s"Primary-key:${l.get("index")} - val:[Foreign-key:${r.get("lang")} - ${r.get("name")}]"
+    val joinQuery = Join[MongoProcess].join(qLang, LANGS, qProg(_), PROGRAMMERS, TEST_DB) { (l, r) ⇒
+      s"PK:${l.get("index")} - [FK:${r.get("lang")} - ${r.get("name")}]"
     }
 
     val p = for {
-      e ← Process.eval(Task.delay(client)) through query.out
-      _ ← e to Sink
+      joinLine ← eval(Task.now(client)) through joinQuery.out
+      _ ← joinLine to SinkBuffer
     } yield ()
 
-    p.run.run
-    logger.info("Join with MongoProcessStream result:" + buffer)
-
+    p.runLog.run
     buffer.size === MongoIntegrationEnv.programmersSize
   }
 
-  "Join with MongoObservable" in new MongoClientJoinEnviromentLifecycle {
+  "Join with MongoObservable" in new MongoDbEnviroment {
     initMongo
 
     implicit val c = client
@@ -70,7 +69,7 @@ class JoinMongoSpec extends Specification {
     def qProg(left: DBObject) = for { q ← "lang" $eq left.get("index").asInstanceOf[Int] } yield q
 
     val query = Join[MongoObservable].join(qLang, LANGS, qProg(_), PROGRAMMERS, TEST_DB) { (l, r) ⇒
-      s"Primary-key:${l.get("index")} - val:[Foreign-key:${r.get("lang")} - ${r.get("name")}]"
+      s"PK:${l.get("index")} - [FK:${r.get("lang")} - ${r.get("name")}]"
     }
 
     val pageSize = 7

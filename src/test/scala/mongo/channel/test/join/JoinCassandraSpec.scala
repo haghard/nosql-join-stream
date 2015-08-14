@@ -52,12 +52,12 @@ class JoinCassandraSpec extends WordSpecLike with Matchers with TemperatureEnvir
       implicit val client = Cluster.builder().addContactPointsWithPorts(cassandraHost).build
 
       val joinQuery = Join[CassandraProcess].join(qSensors, SENSORS, qTemperature, TEMPERATURE, KEYSPACE) { (l, r) ⇒
-        s"Sensor №${l.getLong("sensor")} - time: ${r.getLong("event_time")} Temperature: ${r.getDouble("temperature")}"
+        s"Sensor №${l.getLong("sensor")} - time: ${r.getLong("event_time")} temperature: ${r.getDouble("temperature")}"
       }
 
       (for {
         row ← P.eval(Task.now(client)) through joinQuery.out
-        _ ← row observe LoggerS to BufferSink //thread safe since we write in single thread
+        _ ← row observe LoggerS to BufferSink //thread safe since we write from single thread
       } yield ())
         .onFailure { th ⇒ logger.debug(s"Failure: ${th.getMessage}"); P.halt }
         .onComplete { P.eval_(Task.delay { client.close(); logger.debug("Join has been completed") }) }
