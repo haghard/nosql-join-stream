@@ -25,6 +25,7 @@ package object mongo {
     override type ReadSettings = MongoReadSettings
     override type Cursor = com.mongodb.Cursor
     override type Stream[Out] = _root_.mongo.channel.DBChannel[Client, Out]
+    override type Context = java.util.concurrent.ExecutorService
   }
 
   trait MongoObservable extends StorageModule {
@@ -33,5 +34,15 @@ package object mongo {
     override type ReadSettings = MongoReadSettings
     override type Cursor = com.mongodb.Cursor
     override type Stream[Out] = rx.lang.scala.Observable[Out]
+    override type Context = java.util.concurrent.ExecutorService
+  }
+
+  trait MongoAkkaStream extends StorageModule {
+    override type Client = com.mongodb.MongoClient
+    override type Record = com.mongodb.DBObject
+    override type ReadSettings = MongoReadSettings
+    override type Cursor = com.mongodb.Cursor
+    override type Stream[Out] = akka.stream.scaladsl.Source[Out, Unit]
+    override type Context = akka.actor.ActorSystem
   }
 }

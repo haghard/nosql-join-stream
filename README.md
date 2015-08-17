@@ -3,7 +3,11 @@ Nosql-join-stream
 
 Goals:
   * To demonstrate power of design based on "Abstract algebraic data type"
-  * Provide support for streaming libs: [ScalazStream](https://github.com/scalaz/scalaz-stream) and [RxScala](https://github.com/ReactiveX/RxScala.git) in join process
+  * Provide support for streaming libs:
+  
+    [ScalazStream](https://github.com/scalaz/scalaz-stream) 
+    [AkkaStream](https://github.com/akka/akka) 
+    [RxScala](https://github.com/ReactiveX/RxScala.git)
   * Provide support for MongoDb and Cassandra with single API
   * Resource safety
 
@@ -25,13 +29,18 @@ from mongo.channel.test.join.JoinCassandraSpec
   } yield q
   
   //to get Process
-  val joinQuery = Join[CassandraProcess].join(qSensors, SENSORS, qTemperature, TEMPERATURE, KEYSPACE) { (l, r) ⇒
-    s"Sensor №${l.getLong("sensor")} - time: ${r.getLong("event_time")} temperature: ${r.getDouble("temperature")}"
+  val joinQuery = Join[CassandraProcess].join(qSensors, SENSORS, qTemperature, TEMPERATURE, KEYSPACE) { (outer, inner) ⇒
+    s"Sensor №${outer.getLong("sensor")} - time: ${inner.getLong("event_time")} temperature: ${inner.getDouble("temperature")}"
   }
   
   //to get Observable
-  val joinQuery = Join[CassandraObservable].join(qSensors, SENSORS, qTemperature, TEMPERATURE, KEYSPACE) { (l, r) ⇒
-    s"Sensor №${l.getLong("sensor")} - time: ${r.getLong("event_time")} temperature: ${r.getDouble("temperature")}"
+  val joinQuery = Join[CassandraObservable].join(qSensors, SENSORS, qTemperature, TEMPERATURE, KEYSPACE) { (outer, inner) ⇒
+    s"Sensor №${outer.getLong("sensor")} - time: ${inner.getLong("event_time")} temperature: ${inner.getDouble("temperature")}"
+  }
+  
+  //to get akka Source
+  val joinQuery = Join[CassandraAkkaStream].join(qSensors, SENSORS, qTemperature, TEMPERATURE, KEYSPACE) { (outer, r) ⇒
+    s"Sensor №${outer.getLong("sensor")} - time: ${inner.getLong("event_time")} temperature: ${inner.getDouble("temperature")}"
   }
     
 ```
@@ -49,13 +58,18 @@ from mongo.channel.test.join.JoinMongoSpec
   def qProg(outer: DBObject) = for { q ← "lang" $eq outer.get("index").asInstanceOf[Int] } yield q
   
   //to get Process
-  val joinQuery = Join[MongoProcess].join(qLang, LANGS, qProg(_), PROGRAMMERS, TEST_DB) { (l, r) ⇒
-    s"PK:${l.get("index")} - FK:${r.get("lang")} - ${r.get("name")}"
+  val joinQuery = Join[MongoProcess].join(qLang, LANGS, qProg(_), PROGRAMMERS, TEST_DB) { (outer, inner) ⇒
+    s"PK:${outer.get("index")} - FK:${inner.get("lang")} - ${inner.get("name")}"
   }
 
   //to get Observable
-  val query = Join[MongoObservable].join(qLang, LANGS, qProg(_), PROGRAMMERS, TEST_DB) { (l, r) ⇒
-    s"PK:${l.get("index")} - [FK:${r.get("lang")} - ${r.get("name")}]"
+  val query = Join[MongoObservable].join(qLang, LANGS, qProg(_), PROGRAMMERS, TEST_DB) { (outer, inner) ⇒
+    s"PK:${outer.get("index")} - [FK:${inner.get("lang")} - ${inner.get("name")}]"
+  }
+
+  //to get akka Source
+  val joinQuery = Join[MongoAkkaStream].join(qSensors, SENSORS, qTemperature, TEMPERATURE, KEYSPACE) { (outer, inner) ⇒
+    s"Sensor №${outer.getLong("sensor")} - time: ${inner.getLong("event_time")} temperature: ${inner.getDouble("temperature")}"
   }
   
 ```

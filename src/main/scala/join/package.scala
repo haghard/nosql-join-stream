@@ -12,16 +12,23 @@
  * limitations under the License.
  */
 
+import akka.stream.scaladsl
+import akka.stream.scaladsl._
+
 /**
  *
- *
  * Based on idea from: http://io.pellucid.com/blog/abstract-algebraic-data-type
+ *
+ * Since akka source isn't a functor and monad we can't use this constraint anymore
+ * type Stream[A] <: {
+ *  def map[B](f: A ⇒ B): Stream[B]
+ *  def flatMap[B](f: A ⇒ Stream[B]): Stream[B]
+ * }
  */
 package object join {
   import dsl.QFree
   import storage.Storage
   import scala.reflect.ClassTag
-  import java.util.concurrent.ExecutorService
 
   trait StorageModule {
     type Record
@@ -31,14 +38,11 @@ package object join {
       def next(): Record
     }
     type Client
-
-    type Stream[A] <: {
-      def map[B](f: A ⇒ B): Stream[B]
-      def flatMap[B](f: A ⇒ Stream[B]): Stream[B]
-    }
+    type Stream[A]
+    type Context
   }
 
-  final case class Join[T <: StorageModule: Joiner: Storage](implicit pool: ExecutorService, client: T#Client, t: ClassTag[T]) {
+  final case class Join[T <: StorageModule: Joiner: Storage](implicit ctx: T#Context, client: T#Client, t: ClassTag[T]) {
     import org.apache.log4j.Logger
 
     implicit val logger = Logger.getLogger(s"${t.runtimeClass.getName.dropWhile(_ != '$').drop(1)}-Producer-join")
@@ -48,21 +52,21 @@ package object join {
                 resource: String)(f: (T#Record, T#Record) ⇒ A): T#Stream[A] = {
 
       val storage = Storage[T]
-      val outer = storage.outer(leftQ, lCollection, resource, logger, pool)(client)
-      val relation = storage.inner(rightQ, rCollection, resource, logger, pool)(client)
+      val outer = storage.outer(leftQ, lCollection, resource, logger, ctx)(client)
+      val relation = storage.inner(rightQ, rCollection, resource, logger, ctx)(client)
 
       Joiner[T].join[T#Record, T#Record, A](outer)(relation)(f)
     }
   }
 
   private[join] trait Joiner[T <: StorageModule] {
-    def join[A, B, C](l: T#Stream[A])(relation: A ⇒ T#Stream[B])(f: (A, B) ⇒ C): T#Stream[C]
+    def join[A, B, C](outer: T#Stream[A])(relation: A ⇒ T#Stream[B])(f: (A, B) ⇒ C): T#Stream[C]
   }
 
   object Joiner {
     import rx.lang.scala.Observable
-    import join.mongo.{ MongoObservable, MongoProcess }
-    import join.cassandra.{ CassandraObservable, CassandraProcess }
+    import join.mongo.{ MongoObservable, MongoProcess, MongoAkkaStream }
+    import join.cassandra.{ CassandraObservable, CassandraProcess, CassandraAkkaStream }
 
     /**
      * Performs sequentual join
@@ -95,6 +99,22 @@ package object join {
     implicit object CassandraO extends Joiner[CassandraObservable] {
       override def join[A, B, C](outer: Observable[A])(relation: (A) ⇒ Observable[B])(f: (A, B) ⇒ C): Observable[C] =
         for { id ← outer; rs ← relation(id).map(f(id, _)) } yield rs
+    }
+
+    private def akkaFlattenSource[A,B,C](outer: Source[A, Unit], relation: (A) => Source[B, Unit], f: (A, B) => C): Source[C, Unit] =
+      outer.map(a => relation(a).map(f(a, _))).flatten(scaladsl.FlattenStrategy.concat[C])
+
+    /**
+     * Performs sequentual join
+     */
+    implicit object MongoAS extends Joiner[MongoAkkaStream] {
+      override def join[A, B, C](outer: Source[A, Unit])(relation: (A) => Source[B, Unit])(f: (A, B) => C): Source[C, Unit] =
+        akkaFlattenSource(outer, relation, f)
+    }
+
+    implicit object CassandraAS extends Joiner[CassandraAkkaStream] {
+      override def join[A, B, C](outer: Source[A, Unit])(relation: (A) => Source[B, Unit])(f: (A, B) => C): Source[C, Unit] =
+        akkaFlattenSource(outer, relation, f)
     }
 
     def apply[T <: StorageModule: Joiner]: Joiner[T] = implicitly[Joiner[T]]

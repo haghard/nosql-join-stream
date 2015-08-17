@@ -20,6 +20,7 @@ import java.util.concurrent.atomic.AtomicLong
 import com.mongodb.DBObject
 
 import mongo.channel.test.{ MongoDbEnviroment, MongoIntegrationEnv }
+import org.scalatest.concurrent.ScalaFutures
 import org.specs2.mutable.Specification
 import rx.lang.scala.Subscriber
 import rx.lang.scala.schedulers.ExecutionContextScheduler
@@ -30,7 +31,7 @@ import scalaz.concurrent.Task
 import scalaz.stream.Process._
 import scalaz.stream.io
 
-class JoinMongoSpec extends Specification {
+class JoinMongoSpec extends Specification with ScalaFutures {
   import MongoIntegrationEnv._
   import join.Join
   import join.mongo.{ MongoProcess, MongoObservable }
@@ -47,8 +48,8 @@ class JoinMongoSpec extends Specification {
     val qLang = for { q ← "index" $gte 0 $lte 5 } yield q
     def qProg(outer: DBObject) = for { q ← "lang" $eq outer.get("index").asInstanceOf[Int] } yield q
 
-    val joinQuery = Join[MongoProcess].join(qLang, LANGS, qProg(_), PROGRAMMERS, TEST_DB) { (l, r) ⇒
-      s"PK:${l.get("index")} - [FK:${r.get("lang")} - ${r.get("name")}]"
+    val joinQuery = Join[MongoProcess].join(qLang, LANGS, qProg(_), PROGRAMMERS, TEST_DB) { (outer, inner) ⇒
+      s"PK:${outer.get("index")} - [FK:${inner.get("lang")} - ${inner.get("name")}]"
     }
 
     val p = for {
@@ -68,8 +69,8 @@ class JoinMongoSpec extends Specification {
     val qLang = for { q ← "index" $gte 0 $lte 5 } yield q
     def qProg(left: DBObject) = for { q ← "lang" $eq left.get("index").asInstanceOf[Int] } yield q
 
-    val query = Join[MongoObservable].join(qLang, LANGS, qProg(_), PROGRAMMERS, TEST_DB) { (l, r) ⇒
-      s"PK:${l.get("index")} - [FK:${r.get("lang")} - ${r.get("name")}]"
+    val query = Join[MongoObservable].join(qLang, LANGS, qProg(_), PROGRAMMERS, TEST_DB) { (outer, inner) ⇒
+      s"PK:${outer.get("index")} - [FK:${inner.get("lang")} - ${inner.get("name")}]"
     }
 
     val pageSize = 7

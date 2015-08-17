@@ -37,6 +37,7 @@ val MongoDriverVersion = "3.0.2"
 val CassandraDriverVersion = "2.1.7"
 val ScalazStreamVersion = "0.7.1a"
 val RxScala = "0.25.0"
+val Akka = "1.0"
 val localMvnRepo = "/Volumes/Data/dev_build_tools/apache-maven-3.1.1/repository"
 
 scalariformSettings
@@ -54,17 +55,20 @@ resolvers ++= Seq(
 )
 
 libraryDependencies ++= Seq(
-    "org.mongodb"            %   "mongo-java-driver"       %   MongoDriverVersion  withSources(),
-    "com.datastax.cassandra" %   "cassandra-driver-core"   %   CassandraDriverVersion withSources(),
-    "org.scalaz.stream"      %%  "scalaz-stream"           %   ScalazStreamVersion withSources(),
-    "io.reactivex"           %%  "rxscala"                 %   RxScala             withSources(),
-    "log4j"                  %   "log4j"                   %   "1.2.14")
+    "org.mongodb"            %   "mongo-java-driver"        %   MongoDriverVersion     withSources(),
+    "com.datastax.cassandra" %   "cassandra-driver-core"    %   CassandraDriverVersion withSources(),
+    "org.scalaz.stream"      %%  "scalaz-stream"            %   ScalazStreamVersion    withSources(),
+    "io.reactivex"           %%  "rxscala"                  %   RxScala                withSources(),
+    "com.typesafe.akka"      %%  "akka-stream-experimental" %   Akka                  withSources(),
+    "log4j"                  %   "log4j"                    %   "1.2.14"
+)
 
 libraryDependencies ++= Seq(
   "de.bwaldvogel"     %   "mongo-java-server" %   "1.4.1"   % "test" withSources(),
   "org.cassandraunit" %   "cassandra-unit"    %   "2.0.2.2" % "test",
   "org.specs2"        %%  "specs2-core"       %   "3.2"     % "test" withSources(),
-  "org.scalatest"     %%  "scalatest"         %   "2.1.4"   % "test"
+  "org.scalatest"     %%  "scalatest"         %   "2.1.4"   % "test",
+  "com.typesafe.akka" %%  "akka-testkit"      %   "2.4-M3"  % "test"
 )
 
 scalacOptions ++= Seq(
