@@ -131,8 +131,6 @@ package object storage {
                                                    coll: String, logger: Logger,
                                                    query: QFree[CassandraAkkaStream#ReadSettings])
         extends AkkaSource[CassandraAkkaStream#Record, CassandraAkkaStream#Cursor] {
-        import akka.stream.actor.ActorPublisherMessage._
-
         override val cursor: CassandraAkkaStream#Cursor = {
           val rs = implicitly[QueryInterpreter[CassandraProcess]].interpret(query)
           val queryStr = MessageFormat.format(rs.query, coll)

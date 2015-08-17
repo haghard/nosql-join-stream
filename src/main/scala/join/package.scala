@@ -41,20 +41,24 @@ package object join {
     type Context
   }
 
-  final case class Join[T <: StorageModule: Joiner: Storage](implicit ctx: T#Context, client: T#Client, t: ClassTag[T]) {
+  /**
+   * Module extends StorageModule and have implicits values Joiner[Module] and Storage[Module] in scope
+   *
+   */
+  final case class Join[Module <: StorageModule: Joiner: Storage](implicit ctx: Module#Context, client: Module#Client, t: ClassTag[Module]) {
     import org.apache.log4j.Logger
 
     implicit val logger = Logger.getLogger(s"${t.runtimeClass.getName.dropWhile(_ != '$').drop(1)}-Producer-join")
 
-    def join[A](leftQ: QFree[T#ReadSettings], lCollection: String,
-                rightQ: T#Record ⇒ QFree[T#ReadSettings], rCollection: String,
-                resource: String)(f: (T#Record, T#Record) ⇒ A): T#Stream[A] = {
+    def join[A](leftQ: QFree[Module#ReadSettings], lCollection: String,
+                rightQ: Module#Record ⇒ QFree[Module#ReadSettings], rCollection: String,
+                resource: String)(f: (Module#Record, Module#Record) ⇒ A): Module#Stream[A] = {
 
-      val storage = Storage[T]
+      val storage = Storage[Module]
       val outer = storage.outer(leftQ, lCollection, resource, logger, ctx)(client)
       val relation = storage.inner(rightQ, rCollection, resource, logger, ctx)(client)
 
-      Joiner[T].join[T#Record, T#Record, A](outer)(relation)(f)
+      Joiner[Module].join[Module#Record, Module#Record, A](outer)(relation)(f)
     }
   }
 
