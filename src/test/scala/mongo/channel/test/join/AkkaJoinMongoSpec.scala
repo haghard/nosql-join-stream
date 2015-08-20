@@ -14,6 +14,7 @@
 
 package mongo.channel.test.join
 
+import join.Joiner.AkkaConcurrentAttributes
 import mongo._
 import join.Join
 import dsl.mongo._
@@ -28,6 +29,9 @@ import mongo.channel.test.{ MongoIntegrationEnv, MongoDbEnviroment }
 import org.scalatest.{ BeforeAndAfterAll, BeforeAndAfterEach, MustMatchers, WordSpecLike }
 
 import scala.concurrent.Await
+import scala.concurrent.duration._
+import akka.stream.scaladsl.Sink
+import scalaz.{ -\/, \/- }
 
 class AkkaJoinMongoSpec extends TestKit(ActorSystem("akka-join-stream")) with WordSpecLike
     with MustMatchers with BeforeAndAfterEach with BeforeAndAfterAll {
@@ -36,27 +40,58 @@ class AkkaJoinMongoSpec extends TestKit(ActorSystem("akka-join-stream")) with Wo
 
   override def afterAll() = TestKit.shutdownActorSystem(system)
 
-  implicit val materializer = ActorMaterializer(ActorMaterializerSettings(system)
-    .withDispatcher("akka.join-dispatcher"))
+  val PkLimit = 5
+  val qLang = for { q ← "index" $gte 0 $lt PkLimit } yield q
+
+  def qProg(left: DBObject) = for { q ← "lang" $eq left.get("index").asInstanceOf[Int] } yield q
+
+  def folder = { (acc: List[String], cur: String) ⇒ acc :+ cur }
+
+  def cmb: (DBObject, DBObject) ⇒ String =
+    (outer, inner) ⇒
+      s"""[PK:${outer.get("index")}] - [FK:${inner.get("lang")} - ${inner.get("name")}]"""
 
   "MongoJoin with Akka Streams" in new MongoDbEnviroment {
     initMongo
+    implicit val c = client
+    val materializer = ActorMaterializer(
+      ActorMaterializerSettings(system)
+        .withDispatcher("akka.join-dispatcher")
+    )
+
+    implicit val Attributes = -\/(system)
+
+    val joinSource =
+      Join[MongoAkkaStream]
+        .join(qLang, LANGS, qProg(_), PROGRAMMERS, TEST_DB)(cmb)
+
+    val futureSeq = joinSource
+      .runWith(Sink.fold(List.empty[String])(folder))(materializer)
+
+    val seqRes = Await.result(futureSeq, 5 seconds)
+
+    logger.info("Seq: " + seqRes)
+
+    seqRes.size === MongoIntegrationEnv.programmersSize
+  }
+
+  "MongoJoinPar with Akka Streams" in new MongoDbEnviroment {
+    initMongo
+    import scalaz.std.AllInstances._
 
     implicit val c = client
 
-    val qLang = for { q ← "index" $gte 0 $lte 5 } yield q
+    val settings = ActorMaterializerSettings(system).withDispatcher("akka.join-dispatcher")
+    implicit val Attributes = \/-(AkkaConcurrentAttributes(settings, system, scalaz.Monoid[String]))
 
-    def qProg(left: DBObject) = for { q ← "lang" $eq left.get("index").asInstanceOf[Int] } yield q
+    val parSource = Join[MongoAkkaStream].join(qLang, LANGS, qProg(_), PROGRAMMERS, TEST_DB)(cmb)
 
-    val joinSource = Join[MongoAkkaStream].join(qLang, LANGS, qProg(_), PROGRAMMERS, TEST_DB) { (outer, inner) ⇒
-      s"""[PK:${outer.get("index")}] - [FK:${inner.get("lang")} - ${inner.get("name")}]"""
-    }
+    val futurePar = parSource
+      .runWith(Sink.fold(List.empty[String])(folder))(ActorMaterializer(settings)(system))
 
-    val folder = { (acc: List[String], cur: String) ⇒ logger.info(s"consume $cur"); acc :+ cur }
+    val parRes = Await.result(futurePar, 5 seconds)
 
-    val future = joinSource.runWith(akka.stream.scaladsl.Sink.fold(List.empty[String])(folder))
-
-    import scala.concurrent.duration._
-    Await.result(future, 5 seconds).size === MongoIntegrationEnv.programmersSize
+    logger.info("Par: " + parRes)
+    parRes.size === PkLimit
   }
 }

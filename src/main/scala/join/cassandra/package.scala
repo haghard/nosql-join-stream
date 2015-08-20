@@ -14,6 +14,8 @@
 
 package join
 
+import scalaz.\/
+
 package object cassandra {
   import com.datastax.driver.core.ConsistencyLevel
 
@@ -45,6 +47,6 @@ package object cassandra {
     override type ReadSettings = CassandraReadSettings
     override type Cursor = java.util.Iterator[com.datastax.driver.core.Row]
     override type Stream[Out] = akka.stream.scaladsl.Source[Out, Unit]
-    override type Context = akka.actor.ActorSystem
+    override type Context = akka.actor.ActorSystem \/ join.Joiner.AkkaConcurrentAttributes
   }
 }

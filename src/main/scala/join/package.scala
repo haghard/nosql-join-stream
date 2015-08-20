@@ -12,6 +12,22 @@
  * limitations under the License.
  */
 
+import akka.stream.scaladsl._
+
+/*
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 /**
  *
  * Based on idea from: http://io.pellucid.com/blog/abstract-algebraic-data-type
@@ -50,24 +66,22 @@ package object join {
 
     implicit val logger = Logger.getLogger(s"${t.runtimeClass.getName.dropWhile(_ != '$').drop(1)}-Producer-join")
 
-    def join[A](leftQ: QFree[Module#ReadSettings], lCollection: String,
-                rightQ: Module#Record ⇒ QFree[Module#ReadSettings], rCollection: String,
-                resource: String)(f: (Module#Record, Module#Record) ⇒ A): Module#Stream[A] = {
-
+    def join[A](outerQ: QFree[Module#ReadSettings], outerC: String,
+                innerQ: Module#Record ⇒ QFree[Module#ReadSettings], innerC: String, resource: String)
+                (mapper: (Module#Record, Module#Record) ⇒ A): Module#Stream[A] = {
       val storage = Storage[Module]
-      val outer = storage.outer(leftQ, lCollection, resource, logger, ctx)(client)
-      val relation = storage.inner(rightQ, rCollection, resource, logger, ctx)(client)
-
-      Joiner[Module].join[Module#Record, Module#Record, A](outer)(relation)(f)
+      val outer = storage.outer(outerQ, outerC, resource, logger, ctx)(client)
+      val relation = storage.inner(innerQ, innerC, resource, logger, ctx)(client)
+      Joiner[Module].join[Module#Record, Module#Record, A](outer)(relation)(mapper)
     }
   }
 
   private[join] trait Joiner[T <: StorageModule] {
-    def join[A, B, C](outer: T#Stream[A])(relation: A ⇒ T#Stream[B])(f: (A, B) ⇒ C): T#Stream[C]
+    def join[A, B, C](outer: T#Stream[A])(relation: A ⇒ T#Stream[B])(mapper: (A, B) ⇒ C)
+                     (implicit ctx: T#Context): T#Stream[C]
   }
 
   object Joiner {
-    import rx.lang.scala.Observable
     import join.mongo.{ MongoObservable, MongoProcess, MongoAkkaStream }
     import join.cassandra.{ CassandraObservable, CassandraProcess, CassandraAkkaStream }
 
@@ -75,64 +89,81 @@ package object join {
      * Performs sequentual join
      */
     implicit object MongoP extends Joiner[MongoProcess] {
-      def join[A, B, C](outer: MongoProcess#Stream[A])(relation: A ⇒ MongoProcess#Stream[B])(f: (A, B) ⇒ C): MongoProcess#Stream[C] =
+      def join[A, B, C](outer: MongoProcess#Stream[A])(relation: A ⇒ MongoProcess#Stream[B])(f: (A, B) ⇒ C)
+                       (implicit ctx: MongoProcess#Context): MongoProcess#Stream[C] =
         for { id ← outer; rs ← relation(id) |> scalaz.stream.process1.lift(f(id, _)) } yield rs
     }
 
-    /**
-     * Runs each inner query in parallel utilized executor
-     */
     implicit object MongoO extends Joiner[MongoObservable] {
-      override def join[A, B, C](outer: MongoObservable#Stream[A])(relation: A ⇒ MongoObservable#Stream[B])(f: (A, B) ⇒ C): MongoObservable#Stream[C] =
-        for { id ← outer; rs ← relation(id).map(f(id, _)) } yield rs
+      override def join[A, B, C](outer: MongoObservable#Stream[A])(relation: A ⇒ MongoObservable#Stream[B])(f: (A, B) ⇒ C)
+                                (implicit ctx: MongoObservable#Context): MongoObservable#Stream[C] =
+        for {
+          id ← outer
+          rs ← relation(id).map(f(id, _))
+        } yield rs
     }
 
-    /**
-     * Performs sequentual join
-     */
+
+
     implicit object CassandraP extends Joiner[CassandraProcess] {
-      override def join[A, B, C](outer: CassandraProcess#Stream[A])(relation: A ⇒ CassandraProcess#Stream[B])(f: (A, B) ⇒ C): CassandraProcess#Stream[C] = {
-        for { id ← outer; rs ← relation(id) |> scalaz.stream.process1.lift(f(id, _))} yield rs
+      override def join[A, B, C](outer: CassandraProcess#Stream[A])(relation: A ⇒ CassandraProcess#Stream[B])(f: (A, B) ⇒ C)
+                                (implicit ctx: CassandraProcess#Context): CassandraProcess#Stream[C] = {
+        for {
+          id ← outer
+          rs ← relation(id) |> scalaz.stream.process1.lift(f(id, _))
+        } yield rs
       }
     }
 
-    /**
-     * Runs each inner query in parallel utilized executor
-     */
     implicit object CassandraO extends Joiner[CassandraObservable] {
-      override def join[A, B, C](outer: Observable[A])(relation: (A) ⇒ Observable[B])(f: (A, B) ⇒ C): Observable[C] =
-        for { id ← outer; rs ← relation(id).map(f(id, _)) } yield rs
-    }
-
-
-    /**
-     * Performs sequentual join
-     */
-    implicit object MongoAS extends Joiner[MongoAkkaStream] {
-      override def join[A, B, C](outer: MongoAkkaStream#Stream[A])
-                                (relation: (A) => MongoAkkaStream#Stream[B])(f: (A, B) => C): MongoAkkaStream#Stream[C] =
-        akkaFlattenSource[A,B,C](outer, relation, f)
-    }
-
-    /**
-     * Performs sequentual join
-     */
-    implicit object CassandraAS extends Joiner[CassandraAkkaStream] {
-      override def join[A, B, C](outer: CassandraAkkaStream#Stream[A])
-                                (relation: (A) => CassandraAkkaStream#Stream[B])(f: (A, B) => C): CassandraAkkaStream#Stream[C] =
-        akkaFlattenSource[A,B,C](outer, relation, f)
+      override def join[A, B, C](outer: CassandraObservable#Stream[A])(relation: (A) ⇒ CassandraObservable#Stream[B])(f: (A, B) ⇒ C)
+                                (implicit ctx: CassandraObservable#Context): CassandraObservable#Stream[C] =
+        for {
+          id ← outer
+          rs ← relation(id).map(f(id, _))
+        } yield rs
     }
 
     type AkkaSource[x] = akka.stream.scaladsl.Source[x, Unit]
 
-    private def akkaFlattenSource[A, B, C](outer: AkkaSource[A], relation: (A) => AkkaSource[B], cmb: (A, B) => C): AkkaSource[C] =
-      outer.map(a => relation(a).map(b => cmb(a, b))).flatten(akka.stream.scaladsl.FlattenStrategy.concat[C])
+    private def akkaSequentualSource[A, B, C](outer: AkkaSource[A], relation: (A) => AkkaSource[B], cmb: (A, B) => C,
+                                              system: akka.actor.ActorSystem): AkkaSource[C] =
+      outer.map(a => relation(a).map(b => cmb(a, b)))
+        .flatten(akka.stream.scaladsl.FlattenStrategy.concat[C])
 
-    /**
-     *
-     * @tparam T
-     * @return
-     */
+
+    implicit object MongoASP extends Joiner[MongoAkkaStream] {
+      override def join[A, B, C](outer: Source[A, Unit])(relation: (A) => Source[B, Unit])
+                                (mapper: (A, B) => C)
+                                (implicit ctx: MongoAkkaStream#Context): MongoAkkaStream#Stream[C] =
+      ctx.fold(system => akkaSequentualSource(outer, relation, mapper, system), { ctxData =>
+        akkaParallelSource(outer, relation, mapper, 4) (akka.stream.ActorMaterializer(ctxData.setting)(ctxData.system),
+          ctxData.M.asInstanceOf[scalaz.Monoid[C]])
+      })
+    }
+
+    implicit object CassandraASP extends Joiner[CassandraAkkaStream] {
+      override def join[A, B, C](outer: Source[A, Unit])(relation: (A) => Source[B, Unit])
+                                (mapper: (A, B) => C)
+                                (implicit ctx: CassandraAkkaStream#Context): CassandraAkkaStream#Stream[C] = {
+        ctx.fold(system => akkaSequentualSource(outer, relation, mapper, system), { ctxData =>
+          akkaParallelSource(outer, relation, mapper, 4) (akka.stream.ActorMaterializer(ctxData.setting)(ctxData.system),
+            ctxData.M.asInstanceOf[scalaz.Monoid[C]])
+        })
+      }
+    }
+
+    private def akkaParallelSource[A, B, C](outer: AkkaSource[A], relation: (A) => AkkaSource[B], cmb: (A, B) => C, parallelism: Int)
+                                           (implicit mat: akka.stream.ActorMaterializer, M: scalaz.Monoid[C]): AkkaSource[C] = {
+      outer.via(Flow[A].mapAsyncUnordered(parallelism) { ids =>
+        relation(ids).map(b => cmb(ids, b)).runFold(List[C]())(_ :+ _)
+      }).conflate(_.reduce(M.append(_,_))) ((line, list) => M.append(line, list.reduce(M.append(_,_))))
+    }
+
+    case class AkkaConcurrentAttributes(setting: akka.stream.ActorMaterializerSettings,
+                                        system: akka.actor.ActorSystem, M: scalaz.Monoid[_])
+
+
     def apply[T <: StorageModule: Joiner]: Joiner[T] = implicitly[Joiner[T]]
   }
 }

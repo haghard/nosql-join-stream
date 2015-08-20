@@ -14,6 +14,8 @@
 
 package join
 
+import scalaz.\/
+
 package object mongo {
 
   case class MongoReadSettings(q: com.mongodb.DBObject, sort: Option[com.mongodb.DBObject] = None,
@@ -43,6 +45,6 @@ package object mongo {
     override type ReadSettings = MongoReadSettings
     override type Cursor = com.mongodb.Cursor
     override type Stream[Out] = akka.stream.scaladsl.Source[Out, Unit]
-    override type Context = akka.actor.ActorSystem
+    override type Context = akka.actor.ActorSystem \/ join.Joiner.AkkaConcurrentAttributes
   }
 }

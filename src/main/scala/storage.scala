@@ -159,17 +159,22 @@ package object storage {
 
       override def outer(qs: QFree[CassandraAkkaStream#ReadSettings], collection: String,
                          resource: String, log: Logger, ctx: CassandraAkkaStream#Context):
-        (CassandraAkkaStream#Client) => CassandraAkkaStream#Stream[CassandraAkkaStream#Record] =
+        (CassandraAkkaStream#Client) => CassandraAkkaStream#Stream[CassandraAkkaStream#Record] = {
+        val system = ctx.fold(identity, _.system)
         client =>
-          Source(ActorPublisher[CassandraAkkaStream#Record](ctx.actorOf(akka.actor.Props(classOf[CassandraSourcePublisher], client, resource, collection, log, qs)
+          Source(ActorPublisher[CassandraAkkaStream#Record](system.actorOf(akka.actor.Props(classOf[CassandraSourcePublisher], client, resource, collection, log, qs)
             .withDispatcher("akka.join-dispatcher"))))
+      }
 
-      override def inner(r: (Row) => QFree[CassandraAkkaStream#ReadSettings], collection: String, resource: String, log: Logger, ctx: ActorSystem):
-        (CassandraAkkaStream#Client) => (CassandraAkkaStream#Record) => Source[CassandraAkkaStream#Record, Unit] =
+      override def inner(r: (Row) => QFree[CassandraAkkaStream#ReadSettings], collection: String, resource: String,
+                         log: Logger, ctx: CassandraAkkaStream#Context):
+        (CassandraAkkaStream#Client) => (CassandraAkkaStream#Record) => Source[CassandraAkkaStream#Record, Unit] = {
+        val system = ctx.fold(identity, _.system)
         client =>
           outer =>
-          Source(ActorPublisher[CassandraAkkaStream#Record](ctx.actorOf(akka.actor.Props(classOf[CassandraSourcePublisher], client, resource, collection,
-            log, r(outer)).withDispatcher("akka.join-dispatcher"))))
+            Source(ActorPublisher[CassandraAkkaStream#Record](system.actorOf(akka.actor.Props(classOf[CassandraSourcePublisher], client, resource, collection,
+              log, r(outer)).withDispatcher("akka.join-dispatcher"))))
+      }
     }
 
     implicit object MongoStorageAkkaStream extends Storage[MongoAkkaStream] {
@@ -205,17 +210,18 @@ package object storage {
       }
 
       override def outer(qs: QFree[MongoAkkaStream#ReadSettings], collection: String,
-                         resource: String, log: Logger, ctx: akka.actor.ActorSystem): (MongoAkkaStream#Client) => MongoAkkaStream#Stream[MongoAkkaStream#Record] =
-          client =>
-            Source(ActorPublisher[MongoAkkaStream#Record](ctx.actorOf(akka.actor.Props(classOf[MongoSourcePublisher], client, resource, collection, log, qs)
-              .withDispatcher("akka.join-dispatcher"))))
+                         resource: String, log: Logger, ctx: MongoAkkaStream#Context):
+                         (MongoAkkaStream#Client) => MongoAkkaStream#Stream[MongoAkkaStream#Record] =
+        client =>
+          Source(ActorPublisher[MongoAkkaStream#Record](ctx.fold(identity, _.system).actorOf(akka.actor.Props(classOf[MongoSourcePublisher], client, resource, collection, log, qs)
+            .withDispatcher("akka.join-dispatcher"))))
 
       override def inner(r: (MongoAkkaStream#Record) => QFree[MongoAkkaStream#ReadSettings], collection: String,
-                         resource: String, log: Logger, ctx: akka.actor.ActorSystem):
+                         resource: String, log: Logger, ctx: MongoAkkaStream#Context):
         (MongoAkkaStream#Client) => (MongoAkkaStream#Record) => MongoAkkaStream#Stream[MongoAkkaStream#Record] =
           client =>
              outer =>
-              Source(ActorPublisher[MongoAkkaStream#Record](ctx.actorOf(akka.actor.Props(classOf[MongoSourcePublisher], client,
+              Source(ActorPublisher[MongoAkkaStream#Record](ctx.fold(identity, _.system).actorOf(akka.actor.Props(classOf[MongoSourcePublisher], client,
                 resource, collection, log, r(outer)).withDispatcher("akka.join-dispatcher"))))
     }
 
@@ -426,13 +432,15 @@ package object storage {
 
       override def outer(q: QFree[CassandraReadSettings], c: String, resource: String,
                           log: Logger, exec: ExecutorService): (Cluster) ⇒ Observable[Row] = {
-        client ⇒ cassandraR[CassandraObservable#Record](q, client, c, resource, log, exec)
+        client ⇒ 
+          cassandraR[CassandraObservable#Record](q, client, c, resource, log, exec)
       }
 
-      override def inner(r: (Row) ⇒ QFree[CassandraReadSettings], c: String, res: String,
+      override def inner(relation: (Row) ⇒ QFree[CassandraReadSettings], c: String, res: String,
                           log: Logger, ctx: ExecutorService): (Cluster) ⇒ (Row) ⇒ Observable[Row] = {
         client ⇒
-          parent ⇒ cassandraR[CassandraObservable#Record](r(parent), client, c, res, log, ctx)
+          outer ⇒ 
+            cassandraR[CassandraObservable#Record](relation(outer), client, c, res, log, ctx)
       }
     }
 
