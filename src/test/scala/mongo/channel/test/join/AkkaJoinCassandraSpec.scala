@@ -64,7 +64,7 @@ class AkkaJoinCassandraSpec extends TestKit(ActorSystem("akka-join-stream")) wit
       val results = Await.result(future, 10 seconds)
 
       if (results.size != measureSize * sensors.size)
-        fail(s"CassandraJoin with Akka Streams actual:${results.size} expected:${sensors.size}")
+        fail(s"CassandraJoin with Akka Streams")
     }
   }
 
