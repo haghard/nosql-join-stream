@@ -72,7 +72,7 @@ class AkkaJoinCassandraSpec extends TestKit(ActorSystem("akka-join-stream")) wit
     "perform parallel join" in {
       import scalaz.std.AllInstances._
       val settings = ActorMaterializerSettings(system).withDispatcher("akka.join-dispatcher")
-      implicit val Attributes = \/-(AkkaConcurrentAttributes(settings, system, scalaz.Monoid[String]))
+      implicit val Attributes = \/-(AkkaConcurrentAttributes(settings, system, 4, scalaz.Monoid[String]))
 
       implicit val client = Cluster.builder().addContactPointsWithPorts(cassandraHost).build
 

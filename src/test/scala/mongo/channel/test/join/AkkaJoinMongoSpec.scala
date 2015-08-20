@@ -82,7 +82,7 @@ class AkkaJoinMongoSpec extends TestKit(ActorSystem("akka-join-stream")) with Wo
     implicit val c = client
 
     val settings = ActorMaterializerSettings(system).withDispatcher("akka.join-dispatcher")
-    implicit val Attributes = \/-(AkkaConcurrentAttributes(settings, system, scalaz.Monoid[String]))
+    implicit val Attributes = \/-(AkkaConcurrentAttributes(settings, system, 4, scalaz.Monoid[String]))
 
     val parSource = Join[MongoAkkaStream].join(qLang, LANGS, qProg(_), PROGRAMMERS, TEST_DB)(cmb)
 

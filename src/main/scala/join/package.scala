@@ -1,3 +1,17 @@
+/*
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import akka.stream.scaladsl._
 /*
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -123,7 +137,7 @@ package object join {
                                 (mapper: (A, B) => C)
                                 (implicit ctx: MongoAkkaStream#Context): MongoAkkaStream#Stream[C] =
       ctx.fold(system => akkaSequentualSource(outer, relation, mapper, system), { ctxData =>
-        akkaParallelSource(outer, relation, mapper, 4) (akka.stream.ActorMaterializer(ctxData.setting)(ctxData.system),
+        akkaParallelSource(outer, relation, mapper, ctxData.parallelism) (akka.stream.ActorMaterializer(ctxData.setting)(ctxData.system),
           ctxData.M.asInstanceOf[scalaz.Monoid[C]])
       })
     }
@@ -133,7 +147,7 @@ package object join {
                                 (mapper: (A, B) => C)
                                 (implicit ctx: CassandraAkkaStream#Context): CassandraAkkaStream#Stream[C] = {
         ctx.fold(system => akkaSequentualSource(outer, relation, mapper, system), { ctxData =>
-          akkaParallelSource(outer, relation, mapper, 4) (akka.stream.ActorMaterializer(ctxData.setting)(ctxData.system),
+          akkaParallelSource(outer, relation, mapper, ctxData.parallelism) (akka.stream.ActorMaterializer(ctxData.setting)(ctxData.system),
             ctxData.M.asInstanceOf[scalaz.Monoid[C]])
         })
       }
@@ -147,7 +161,9 @@ package object join {
     }
 
     case class AkkaConcurrentAttributes(setting: akka.stream.ActorMaterializerSettings,
-                                        system: akka.actor.ActorSystem, M: scalaz.Monoid[_])
+                                        system: akka.actor.ActorSystem,
+                                        parallelism: Int,
+                                        M: scalaz.Monoid[_])
 
 
     def apply[T <: StorageModule: Joiner]: Joiner[T] = implicitly[Joiner[T]]
