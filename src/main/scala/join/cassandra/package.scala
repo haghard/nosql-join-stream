@@ -23,29 +23,24 @@ package object cassandra {
   case class CassandraReadSettings(query: String, v: Option[CassandraParamValue] = None,
                                    consistencyLevel: ConsistencyLevel = ConsistencyLevel.ONE)
 
-  trait CassandraObservable extends StorageModule {
+  private[cassandra] trait CassandraStorage extends StorageModule {
     override type Client = com.datastax.driver.core.Cluster
     override type Record = com.datastax.driver.core.Row
     override type ReadSettings = CassandraReadSettings
     override type Cursor = java.util.Iterator[com.datastax.driver.core.Row]
+  }
+
+  trait CassandraObservable extends CassandraStorage {
     override type Stream[Out] = rx.lang.scala.Observable[Out]
     override type Context = java.util.concurrent.ExecutorService
   }
 
-  trait CassandraProcess extends StorageModule {
-    override type Client = com.datastax.driver.core.Cluster
-    override type Record = com.datastax.driver.core.Row
-    override type ReadSettings = CassandraReadSettings
-    override type Cursor = java.util.Iterator[com.datastax.driver.core.Row]
+  trait CassandraProcess extends CassandraStorage {
     override type Stream[Out] = _root_.mongo.channel.DBChannel[Client, Out]
     override type Context = java.util.concurrent.ExecutorService
   }
 
-  trait CassandraAkkaStream extends StorageModule {
-    override type Client = com.datastax.driver.core.Cluster
-    override type Record = com.datastax.driver.core.Row
-    override type ReadSettings = CassandraReadSettings
-    override type Cursor = java.util.Iterator[com.datastax.driver.core.Row]
+  trait CassandraAkkaStream extends CassandraStorage {
     override type Stream[Out] = akka.stream.scaladsl.Source[Out, Unit]
     override type Context = akka.actor.ActorSystem \/ join.Joiner.AkkaConcurrentAttributes
   }

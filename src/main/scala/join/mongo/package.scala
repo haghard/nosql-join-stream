@@ -21,29 +21,24 @@ package object mongo {
   case class MongoReadSettings(q: com.mongodb.DBObject, sort: Option[com.mongodb.DBObject] = None,
                                limit: Option[Int] = None, skip: Option[Int] = None)
 
-  trait MongoProcess extends StorageModule {
+  private[mongo] trait MongoStorage extends StorageModule {
     override type Client = com.mongodb.MongoClient
     override type Record = com.mongodb.DBObject
     override type ReadSettings = MongoReadSettings
     override type Cursor = com.mongodb.Cursor
+  }
+
+  trait MongoProcess extends MongoStorage {
     override type Stream[Out] = _root_.mongo.channel.DBChannel[Client, Out]
     override type Context = java.util.concurrent.ExecutorService
   }
 
-  trait MongoObservable extends StorageModule {
-    override type Client = com.mongodb.MongoClient
-    override type Record = com.mongodb.DBObject
-    override type ReadSettings = MongoReadSettings
-    override type Cursor = com.mongodb.Cursor
+  trait MongoObservable extends MongoStorage {
     override type Stream[Out] = rx.lang.scala.Observable[Out]
     override type Context = java.util.concurrent.ExecutorService
   }
 
-  trait MongoAkkaStream extends StorageModule {
-    override type Client = com.mongodb.MongoClient
-    override type Record = com.mongodb.DBObject
-    override type ReadSettings = MongoReadSettings
-    override type Cursor = com.mongodb.Cursor
+  trait MongoAkkaStream extends MongoStorage {
     override type Stream[Out] = akka.stream.scaladsl.Source[Out, Unit]
     override type Context = akka.actor.ActorSystem \/ join.Joiner.AkkaConcurrentAttributes
   }
