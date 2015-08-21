@@ -11,8 +11,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-import akka.stream.ActorAttributes
 import akka.stream.scaladsl._
 
 /**
@@ -134,14 +132,9 @@ package object join {
 
     private def akkaParallelSource[A, B, C](outer: AkkaSource[A], relation: (A) => AkkaSource[B], cmb: (A, B) => C, parallelism: Int)
                                            (implicit Mat: akka.stream.ActorMaterializer, M: scalaz.Monoid[C]): AkkaSource[C] = {
-      /*val decider: akka.stream.Supervision.Decider = {
-        case _: ArithmeticException => akka.stream.Supervision.Resume
-        case _ => akka.stream.Supervision.Stop
-      }*/
       outer.via(Flow[A].mapAsyncUnordered(parallelism) { ids =>
         relation(ids).map(b => cmb(ids, b)).runFold(List[C]())(_ :+ _)
       }).conflate(_.reduce(M.append(_,_))) ((line, list) => M.append(line, list.reduce(M.append(_,_))))
-      //.withAttributes(ActorAttributes.supervisionStrategy(decider))
     }
 
     case class AkkaConcurrentAttributes(setting: akka.stream.ActorMaterializerSettings,

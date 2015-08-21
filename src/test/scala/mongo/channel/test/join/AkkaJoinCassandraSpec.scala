@@ -72,7 +72,7 @@ class AkkaJoinCassandraSpec extends TestKit(ActorSystem("akka-join-stream")) wit
           resRef.set(r)
           latch.countDown()
         case Failure(ex) ⇒
-          logger.info("***** Sequentual cassandra join error:" + ex.getMessage)
+          fail("Sequentual cassandra join error:" + ex.getMessage)
           latch.countDown()
       }
 
