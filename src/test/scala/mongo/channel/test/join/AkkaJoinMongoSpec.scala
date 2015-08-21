@@ -71,7 +71,6 @@ class AkkaJoinMongoSpec extends TestKit(ActorSystem("akka-join-stream")) with Wo
     val seqRes = Await.result(futureSeq, 5 seconds)
 
     logger.info("Seq: " + seqRes)
-
     seqRes.size === MongoIntegrationEnv.programmersSize
   }
 

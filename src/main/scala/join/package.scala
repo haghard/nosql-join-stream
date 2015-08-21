@@ -103,7 +103,7 @@ package object join {
         for { id ← outer; rs ← relation(id).map(mapper(id, _))  } yield rs
     }
 
-    type AkkaSource[x] = akka.stream.scaladsl.Source[x, Unit]
+    private type AkkaSource[x] = akka.stream.scaladsl.Source[x, Unit]
 
     private def akkaSequentualSource[A, B, C](outer: AkkaSource[A], relation: (A) => AkkaSource[B], cmb: (A, B) => C,
                                               system: akka.actor.ActorSystem): AkkaSource[C] =
