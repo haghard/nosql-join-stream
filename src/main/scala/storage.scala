@@ -14,9 +14,6 @@
 
 import java.text.MessageFormat
 import java.util.concurrent.ExecutorService
-
-import akka.actor.ActorSystem
-import akka.stream.actor.ActorPublisher
 import akka.stream.scaladsl.Source
 import dsl.QFree
 import dsl.cassandra.CassandraQueryInterpreter
@@ -113,116 +110,84 @@ package object storage {
     import join.mongo.{ MongoObservable, MongoProcess, MongoAkkaStream, MongoReadSettings }
     import join.cassandra.{ CassandraObservable, CassandraProcess, CassandraAkkaStream, CassandraReadSettings }
 
-    trait AkkaSource[T,E] extends akka.stream.actor.ActorPublisher[T] {
-      import akka.stream.actor.ActorPublisherMessage._
-      def cursor(): E
-
-      override def receive: Receive = {
-        case Request(n) => fetch(n)
-        case Cancel => context.stop(self)
-        case _ =>
-      }
-
-      def fetch(n: Long): Unit
-    }
-
     implicit object CassandraStorageAkkaStream extends Storage[CassandraAkkaStream] {
-      private final class CassandraSourcePublisher(client: CassandraAkkaStream#Client, resource: String,
-                                                   coll: String, logger: Logger,
-                                                   query: QFree[CassandraAkkaStream#ReadSettings])
-        extends AkkaSource[CassandraAkkaStream#Record, CassandraAkkaStream#Cursor] {
-        override val cursor: CassandraAkkaStream#Cursor = {
-          val rs = implicitly[QueryInterpreter[CassandraProcess]].interpret(query)
-          val queryStr = MessageFormat.format(rs.query, coll)
-          val session = client.connect(resource)
-          logger.debug(s"★ ★ ★ Create Akka-Fetcher for query:[ $query ] Param: [ ${rs.v} ] ★ ★ ★")
-          rs.v.fold(session.execute(session.prepare(queryStr).setConsistencyLevel(rs.consistencyLevel).bind()).iterator()) { r ⇒
-            session.execute(session.prepare(queryStr).setConsistencyLevel(rs.consistencyLevel).bind(r.v)).iterator()
-          }
+
+      case class CassandraIterator(client: CassandraAkkaStream#Client, resource: String, collection: String, logger: Logger,
+                                   query: QFree[CassandraAkkaStream#ReadSettings]) extends Iterator[CassandraAkkaStream#Record] {
+        val qs = implicitly[QueryInterpreter[CassandraProcess]].interpret(query)
+        val queryStr = MessageFormat.format(qs.query, collection)
+        val session = client.connect(resource)
+        logger.debug(s"★ ★ ★ Create Akka-Fetcher for query:[ $query ] Param: [ ${qs.v} ] ★ ★ ★")
+        val cursor = qs.v.fold(session.execute(session.prepare(queryStr).setConsistencyLevel(qs.consistencyLevel).bind()).iterator()) { r ⇒
+          session.execute(session.prepare(queryStr).setConsistencyLevel(qs.consistencyLevel).bind(r.v)).iterator()
         }
 
-        override def fetch(n:Long) = go(n)
-
-        @tailrec private def go(n: Long): Unit =
-          if (isActive && totalDemand > 0) {
-            if (cursor.hasNext()) {
-              val r = cursor.next()
-              logger.debug(s"fetch $r")
-              onNext(r)
-              go(n - 1)
-            } else {
-              onComplete()
-              logger.info(s"The cursor has been exhausted")
-            }
+        override def hasNext: Boolean = {
+          val r = cursor.hasNext
+          if (!r) {
+            logger.info(s"The cursor for ${qs.query} has been exhausted")
           }
+          r
+        }
+
+        override def next(): CassandraAkkaStream#Record = cursor.next()
       }
 
       override def outer(qs: QFree[CassandraAkkaStream#ReadSettings], collection: String,
                          resource: String, log: Logger, ctx: CassandraAkkaStream#Context):
-        (CassandraAkkaStream#Client) => CassandraAkkaStream#Stream[CassandraAkkaStream#Record] = {
-        val system = ctx.fold(identity, _.system)
+      (CassandraAkkaStream#Client) => CassandraAkkaStream#Stream[CassandraAkkaStream#Record] =
         client =>
-          Source(ActorPublisher[CassandraAkkaStream#Record](system.actorOf(akka.actor.Props(classOf[CassandraSourcePublisher], client, resource, collection, log, qs)
-            .withDispatcher("akka.join-dispatcher"))))
-      }
+          Source(() => CassandraIterator(client, resource, collection, log, qs))
 
       override def inner(r: (Row) => QFree[CassandraAkkaStream#ReadSettings], collection: String, resource: String,
                          log: Logger, ctx: CassandraAkkaStream#Context):
         (CassandraAkkaStream#Client) => (CassandraAkkaStream#Record) => Source[CassandraAkkaStream#Record, Unit] = {
-        val system = ctx.fold(identity, _.system)
         client =>
           outer =>
-            Source(ActorPublisher[CassandraAkkaStream#Record](system.actorOf(akka.actor.Props(classOf[CassandraSourcePublisher], client, resource, collection,
-              log, r(outer)).withDispatcher("akka.join-dispatcher"))))
+            Source(() => CassandraIterator(client, resource, collection, log, r(outer)))
       }
     }
 
     implicit object MongoStorageAkkaStream extends Storage[MongoAkkaStream] {
-      private final class MongoSourcePublisher(client: MongoClient, dbName: String, coll: String, logger: Logger, query: QFree[MongoAkkaStream#ReadSettings])
-        extends AkkaSource[MongoAkkaStream#Record, MongoAkkaStream#Cursor] {
-        override val cursor: MongoAkkaStream#Cursor = {
-          val qs = implicitly[QueryInterpreter[MongoProcess]].interpret(query)
-          val cursor = client.getDB(dbName).getCollection(coll).find(qs.q)
-          cursor |> { c ⇒
-            qs.sort.foreach(c.sort)
-            qs.skip.foreach(c.skip)
-            qs.limit.foreach(c.limit)
-          }
-          logger.debug(s"★ ★ ★ Create Actor-Fetcher for query from $coll Sort:[ ${qs.sort} ] Skip:[ ${qs.skip} ] Limit:[ ${qs.limit} ] Query:[ ${qs.q} ]")
-          cursor
+
+      case class MongoIterator(query: QFree[MongoAkkaStream#ReadSettings], client: MongoAkkaStream#Client,
+                               resource: String, collection: String, logger: Logger) extends Iterator[MongoAkkaStream#Record] {
+        private val qs = implicitly[QueryInterpreter[MongoProcess]].interpret(query)
+        private val cursor = client.getDB(resource).getCollection(collection).find(qs.q)
+        cursor |> { c ⇒
+          qs.sort.foreach(c.sort)
+          qs.skip.foreach(c.skip)
+          qs.limit.foreach(c.limit)
         }
 
-        override def fetch(n:Long) = go(n)
-
-        @tailrec private def go(n: Long): Unit =
-          if (isActive && totalDemand > 0) {
-            if (cursor.hasNext()) {
-              val r = cursor.next()
-              logger.debug(s"fetch $r")
-              onNext(r)
-              go(n - 1)
-            } else {
-              cursor.close()
-              onComplete()
-              logger.info(s"The cursor has been exhausted")
-            }
+        override def hasNext: Boolean = {
+          val r = cursor.hasNext()
+          if (!r) {
+            cursor.close()
+            logger.info(s"The cursor for ${qs.q} has been exhausted")
           }
+          r
+        }
+
+        override def next(): MongoAkkaStream#Record = {
+          val rec = cursor.next()
+          logger.debug(s"fetch: $rec")
+          rec
+        }
       }
 
       override def outer(qs: QFree[MongoAkkaStream#ReadSettings], collection: String,
                          resource: String, log: Logger, ctx: MongoAkkaStream#Context):
                          (MongoAkkaStream#Client) => MongoAkkaStream#Stream[MongoAkkaStream#Record] =
         client =>
-          Source(ActorPublisher[MongoAkkaStream#Record](ctx.fold(identity, _.system).actorOf(akka.actor.Props(classOf[MongoSourcePublisher], client, resource, collection, log, qs)
-            .withDispatcher("akka.join-dispatcher"))))
+          Source(() => MongoIterator(qs, client, resource, collection, log))
 
-      override def inner(r: (MongoAkkaStream#Record) => QFree[MongoAkkaStream#ReadSettings], collection: String,
+      override def inner(relation: (MongoAkkaStream#Record) => QFree[MongoAkkaStream#ReadSettings], collection: String,
                          resource: String, log: Logger, ctx: MongoAkkaStream#Context):
         (MongoAkkaStream#Client) => (MongoAkkaStream#Record) => MongoAkkaStream#Stream[MongoAkkaStream#Record] =
           client =>
              outer =>
-              Source(ActorPublisher[MongoAkkaStream#Record](ctx.fold(identity, _.system).actorOf(akka.actor.Props(classOf[MongoSourcePublisher], client,
-                resource, collection, log, r(outer)).withDispatcher("akka.join-dispatcher"))))
+               Source(() => MongoIterator(relation(outer), client, resource, collection, log))
     }
 
     implicit object MongoStorageProcess extends Storage[MongoProcess] {
