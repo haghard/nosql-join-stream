@@ -63,10 +63,7 @@ package object storage {
     def producer(): Long ⇒ Unit
   }
 
-  trait QueryInterpreter[T <: StorageModule] {
-    /**
-     *
-     */
+  private[storage] trait QueryInterpreter[T <: StorageModule] {
     def interpret(q: QFree[T#QueryAttributes]): T#QueryAttributes
   }
 
@@ -157,23 +154,14 @@ package object storage {
   }
 
   abstract class Storage[T <: StorageModule] {
-    /**
-     *
-     *
-     */
     def outer(q: QFree[T#QueryAttributes], collection: String, resource: String,
               log: Logger, ctx: T#Context): T#Client ⇒ T#Stream[T#Record]
 
-    /**
-     *
-     *
-     */
     def inner(r: T#Record ⇒ QFree[T#QueryAttributes], collection: String, resource: String,
               log: Logger, ctx: T#Context): T#Client ⇒ (T#Record ⇒ T#Stream[T#Record])
   }
 
   object Storage {
-
     import join.mongo.{MongoObservable, MongoProcess, MongoAkkaStream, MongoReadSettings}
     import join.cassandra.{CassandraObservable, CassandraProcess, CassandraAkkaStream, CassandraReadSettings}
 
@@ -295,18 +283,18 @@ package object storage {
           }
       }
 
-      private def mongoR[A](q0: QFree[MongoReadSettings], coll0: String, resource0: String,
+      private def mongoR[A](qs: QFree[MongoReadSettings], coll: String, resource0: String,
                            log0: Logger, client0: MongoObservable#Client, ctx: ExecutorService) =
         Observable { subscriber0: Subscriber[A] ⇒
           subscriber0.setProducer(
             new MongoProducer[A] {
               override def subscriber = subscriber0
 
-              override def settings: QFree[MongoReadSettings] = q0
+              override def settings: QFree[MongoReadSettings] = qs
               override def log = log0
               override def resource = resource0
 
-              override def collection = coll0
+              override def collection = coll
               override def client = client0
               override def interpreter = implicitly[QueryInterpreter[MongoObservable]]
             }.producer)
@@ -410,11 +398,9 @@ package object storage {
         Observable { subscriber0: Subscriber[A] ⇒
           subscriber0.setProducer(new CassandraProducer[A] {
             override def subscriber = subscriber0
-
             override def settings = qs
             override def log = logger
             override def resource = resourceName
-
             override def collection = collection0
             override def client = client0
             override def interpreter = implicitly[QueryInterpreter[CassandraObservable]]
