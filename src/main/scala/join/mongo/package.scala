@@ -18,13 +18,13 @@ import scalaz.\/
 
 package object mongo {
 
-  case class MongoReadSettings(q: com.mongodb.DBObject, sort: Option[com.mongodb.DBObject] = None,
+  case class MongoReadSettings(query: com.mongodb.DBObject, sort: Option[com.mongodb.DBObject] = None,
                                limit: Option[Int] = None, skip: Option[Int] = None)
 
   private[mongo] trait MongoStorage extends StorageModule {
     override type Client = com.mongodb.MongoClient
     override type Record = com.mongodb.DBObject
-    override type ReadSettings = MongoReadSettings
+    override type QueryAttributes = MongoReadSettings
     override type Cursor = com.mongodb.Cursor
   }
 

@@ -26,7 +26,7 @@ package object cassandra {
   private[cassandra] trait CassandraStorage extends StorageModule {
     override type Client = com.datastax.driver.core.Cluster
     override type Record = com.datastax.driver.core.Row
-    override type ReadSettings = CassandraReadSettings
+    override type QueryAttributes = CassandraReadSettings
     override type Cursor = java.util.Iterator[com.datastax.driver.core.Row]
   }
 

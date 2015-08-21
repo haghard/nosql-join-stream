@@ -61,11 +61,11 @@ package object dsl {
       def apply[T](op: StatementOp[T]): QueryM[T] = op match {
         case EqOp(q) ⇒
           scalaz.State { (in: MongoReadSettings) ⇒
-            (in.copy(q = new BasicDBObject(mapAsJavaMap(mapAsScalaMap(in.q.toMap) ++ mapAsScalaMap(q.toMap)))), in)
+            (in.copy(query = new BasicDBObject(mapAsJavaMap(mapAsScalaMap(in.query.toMap) ++ mapAsScalaMap(q.toMap)))), in)
           }
         case ChainOp(q) ⇒
           scalaz.State { (in: MongoReadSettings) ⇒
-            (in.copy(q = new BasicDBObject(mapAsJavaMap(mapAsScalaMap(in.q.toMap) ++ mapAsScalaMap(q.toMap)))), in)
+            (in.copy(query = new BasicDBObject(mapAsJavaMap(mapAsScalaMap(in.query.toMap) ++ mapAsScalaMap(q.toMap)))), in)
           }
         case Sort(q)  ⇒ scalaz.State { (in: MongoReadSettings) ⇒ (in.copy(sort = Option(q)), in) }
         case Skip(n)  ⇒ scalaz.State { (in: MongoReadSettings) ⇒ (in.copy(skip = Option(n)), in) }

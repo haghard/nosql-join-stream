@@ -30,7 +30,7 @@ package object join {
 
   trait StorageModule {
     type Record
-    type ReadSettings
+    type QueryAttributes
     type Cursor <: {
       def hasNext(): Boolean
       def next(): Record
@@ -59,8 +59,8 @@ package object join {
      *
      * @return DBModule#Stream[A]
      */
-    def join[A](outerQ: QFree[DBModule#ReadSettings], outerC: String,
-                innerQ: DBModule#Record ⇒ QFree[DBModule#ReadSettings], innerC: String, resource: String)
+    def join[A](outerQ: QFree[DBModule#QueryAttributes], outerC: String,
+                innerQ: DBModule#Record ⇒ QFree[DBModule#QueryAttributes], innerC: String, resource: String)
                 (mapper: (DBModule#Record, DBModule#Record) ⇒ A): DBModule#Stream[A] = {
       val storage = Storage[DBModule]
       val outer = storage.outer(outerQ, outerC, resource, logger, ctx)(client)
