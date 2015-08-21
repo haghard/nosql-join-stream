@@ -42,6 +42,7 @@ package object storage {
 
   private[storage] trait Producer[Module <: StorageModule, E] {
     def interpreter: QueryInterpreter[Module]
+
     def resource: String
 
     def collection: String
@@ -49,7 +50,9 @@ package object storage {
     def client: Module#Client
 
     def settings: QFree[Module#QueryAttributes]
+
     def log: Logger
+
     def subscriber: Subscriber[E]
 
     def cursor: Option[Module#Cursor]
