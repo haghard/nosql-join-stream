@@ -110,65 +110,61 @@ package object storage {
     import join.mongo.{ MongoObservable, MongoProcess, MongoAkkaStream, MongoReadSettings }
     import join.cassandra.{ CassandraObservable, CassandraProcess, CassandraAkkaStream, CassandraReadSettings }
 
-    implicit object CassandraStorageAkkaStream extends Storage[CassandraAkkaStream] {
+    trait DbIterator[Module <: StorageModule] extends Iterator[Module#Record] {
+      def settings: QFree[Module#ReadSettings]
 
-      case class CassandraIterator(client: CassandraAkkaStream#Client, resource: String, collection: String, logger: Logger,
-                                   query: QFree[CassandraAkkaStream#ReadSettings]) extends Iterator[CassandraAkkaStream#Record] {
-        val qs = implicitly[QueryInterpreter[CassandraProcess]].interpret(query)
+      def client: Module#Client
+
+      def resource: String
+
+      def collection: String
+
+      def logger: Logger
+    }
+
+    object DbIterator {
+
+      case class CassandraIterator(
+                                    settings: QFree[CassandraAkkaStream#ReadSettings],
+                                    client: CassandraAkkaStream#Client,
+                                    resource: String, collection: String, logger: Logger
+                                    ) extends DbIterator[CassandraAkkaStream] {
+        val qs = implicitly[QueryInterpreter[CassandraProcess]].interpret(settings)
         val queryStr = MessageFormat.format(qs.query, collection)
         val session = client.connect(resource)
-        logger.debug(s"★ ★ ★ Create Akka-Fetcher for query:[ $query ] Param: [ ${qs.v} ] ★ ★ ★")
         val cursor = qs.v.fold(session.execute(session.prepare(queryStr).setConsistencyLevel(qs.consistencyLevel).bind()).iterator()) { r ⇒
           session.execute(session.prepare(queryStr).setConsistencyLevel(qs.consistencyLevel).bind(r.v)).iterator()
         }
-
         override def hasNext: Boolean = {
           val r = cursor.hasNext
           if (!r) {
-            logger.info(s"The cursor for ${qs.query} has been exhausted")
+            logger.debug(s"The cursor for ${qs.query} has been exhausted")
           }
           r
         }
-
         override def next(): CassandraAkkaStream#Record = cursor.next()
       }
 
-      override def outer(qs: QFree[CassandraAkkaStream#ReadSettings], collection: String,
-                         resource: String, log: Logger, ctx: CassandraAkkaStream#Context):
-      (CassandraAkkaStream#Client) => CassandraAkkaStream#Stream[CassandraAkkaStream#Record] =
-        client =>
-          Source(() => CassandraIterator(client, resource, collection, log, qs))
-
-      override def inner(r: (Row) => QFree[CassandraAkkaStream#ReadSettings], collection: String, resource: String,
-                         log: Logger, ctx: CassandraAkkaStream#Context):
-        (CassandraAkkaStream#Client) => (CassandraAkkaStream#Record) => Source[CassandraAkkaStream#Record, Unit] = {
-        client =>
-          outer =>
-            Source(() => CassandraIterator(client, resource, collection, log, r(outer)))
-      }
-    }
-
-    implicit object MongoStorageAkkaStream extends Storage[MongoAkkaStream] {
-
-      case class MongoIterator(query: QFree[MongoAkkaStream#ReadSettings], client: MongoAkkaStream#Client,
-                               resource: String, collection: String, logger: Logger) extends Iterator[MongoAkkaStream#Record] {
-        private val qs = implicitly[QueryInterpreter[MongoProcess]].interpret(query)
-        private val cursor = client.getDB(resource).getCollection(collection).find(qs.q)
+      case class MongoIterator(
+                                settings: QFree[MongoAkkaStream#ReadSettings],
+                                client: MongoAkkaStream#Client,
+                                resource: String, collection: String, logger: Logger
+                                ) extends DbIterator[MongoAkkaStream] {
+        val qs = implicitly[QueryInterpreter[MongoProcess]].interpret(settings)
+        val cursor = client.getDB(resource).getCollection(collection).find(qs.q)
         cursor |> { c ⇒
           qs.sort.foreach(c.sort)
           qs.skip.foreach(c.skip)
           qs.limit.foreach(c.limit)
         }
-
         override def hasNext: Boolean = {
           val r = cursor.hasNext()
           if (!r) {
             cursor.close()
-            logger.info(s"The cursor for ${qs.q} has been exhausted")
+            logger.debug(s"The cursor for ${qs.q} has been exhausted")
           }
           r
         }
-
         override def next(): MongoAkkaStream#Record = {
           val rec = cursor.next()
           logger.debug(s"fetch: $rec")
@@ -176,18 +172,46 @@ package object storage {
         }
       }
 
+      def mongo(settings: QFree[MongoAkkaStream#ReadSettings], client: MongoAkkaStream#Client,
+                resource: String, collection: String, logger: Logger) =
+        MongoIterator(settings, client, resource, collection, logger)
+
+      def cassandra(settings: QFree[CassandraAkkaStream#ReadSettings], client: CassandraAkkaStream#Client,
+                    resource: String, collection: String, logger: Logger) =
+        CassandraIterator(settings, client, resource, collection, logger)
+    }
+
+    implicit object CassandraStorageAkkaStream extends Storage[CassandraAkkaStream] {
+
+      override def outer(qs: QFree[CassandraAkkaStream#ReadSettings], collection: String,
+                         resource: String, log: Logger, ctx: CassandraAkkaStream#Context):
+      (CassandraAkkaStream#Client) => CassandraAkkaStream#Stream[CassandraAkkaStream#Record] =
+        client =>
+          Source(() => DbIterator.cassandra(qs, client, resource, collection, log))
+
+      override def inner(r: (Row) => QFree[CassandraAkkaStream#ReadSettings], collection: String, resource: String,
+                         log: Logger, ctx: CassandraAkkaStream#Context):
+      (CassandraAkkaStream#Client) => (CassandraAkkaStream#Record) => Source[CassandraAkkaStream#Record, Unit] = {
+        client =>
+          outer =>
+            Source(() => DbIterator.cassandra(r(outer), client, resource, collection, log))
+      }
+    }
+
+    implicit object MongoStorageAkkaStream extends Storage[MongoAkkaStream] {
+
       override def outer(qs: QFree[MongoAkkaStream#ReadSettings], collection: String,
                          resource: String, log: Logger, ctx: MongoAkkaStream#Context):
                          (MongoAkkaStream#Client) => MongoAkkaStream#Stream[MongoAkkaStream#Record] =
         client =>
-          Source(() => MongoIterator(qs, client, resource, collection, log))
+          Source(() => DbIterator.mongo(qs, client, resource, collection, log))
 
       override def inner(relation: (MongoAkkaStream#Record) => QFree[MongoAkkaStream#ReadSettings], collection: String,
                          resource: String, log: Logger, ctx: MongoAkkaStream#Context):
         (MongoAkkaStream#Client) => (MongoAkkaStream#Record) => MongoAkkaStream#Stream[MongoAkkaStream#Record] =
           client =>
              outer =>
-               Source(() => MongoIterator(relation(outer), client, resource, collection, log))
+               Source(() => DbIterator.mongo(relation(outer), client, resource, collection, log))
     }
 
     implicit object MongoStorageProcess extends Storage[MongoProcess] {
