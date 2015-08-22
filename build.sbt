@@ -35,9 +35,10 @@ enablePlugins(GitVersioning)
 
 val MongoDriverVersion = "3.0.2"
 val CassandraDriverVersion = "2.1.7"
-val ScalazStreamVersion = "0.7.1a"
+val ScalazStreamVersion = "0.7.2a"
 val RxScala = "0.25.0"
-val Akka = "1.0"
+val AkkaStreams = "1.0"
+val Akka = "2.4.0-RC1"
 val localMvnRepo = "/Volumes/Data/dev_build_tools/apache-maven-3.1.1/repository"
 
 scalariformSettings
@@ -59,7 +60,7 @@ libraryDependencies ++= Seq(
     "com.datastax.cassandra" %   "cassandra-driver-core"    %   CassandraDriverVersion withSources(),
     "org.scalaz.stream"      %%  "scalaz-stream"            %   ScalazStreamVersion    withSources(),
     "io.reactivex"           %%  "rxscala"                  %   RxScala                withSources(),
-    "com.typesafe.akka"      %%  "akka-stream-experimental" %   Akka                  withSources(),
+  "com.typesafe.akka" %% "akka-stream-experimental" % AkkaStreams withSources(),
     "log4j"                  %   "log4j"                    %   "1.2.14"
 )
 
@@ -68,7 +69,7 @@ libraryDependencies ++= Seq(
   "org.cassandraunit" %   "cassandra-unit"    %   "2.0.2.2" % "test",
   "org.specs2"        %%  "specs2-core"       %   "3.2"     % "test" withSources(),
   "org.scalatest"     %%  "scalatest"         %   "2.1.4"   % "test",
-  "com.typesafe.akka" %%  "akka-testkit"      %   "2.4-M3"  % "test"
+  "com.typesafe.akka" %% "akka-testkit" % Akka % "test"
 )
 
 scalacOptions ++= Seq(

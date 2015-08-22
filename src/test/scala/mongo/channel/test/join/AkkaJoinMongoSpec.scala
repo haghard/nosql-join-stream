@@ -14,7 +14,7 @@
 
 package mongo.channel.test.join
 
-import java.util.concurrent.CountDownLatch
+import java.util.concurrent.{TimeUnit, CountDownLatch}
 import java.util.concurrent.atomic.AtomicReference
 
 import join.Joiner.AkkaConcurrentAttributes
@@ -86,7 +86,7 @@ class AkkaJoinMongoSpec extends TestKit(ActorSystem("akka-join-stream")) with Wo
         latch.countDown()
     }
 
-    latch.await()
+    latch.await(5, TimeUnit.SECONDS) mustBe true
     logger.info("Seq: " + resRef.get())
     resRef.get().size mustBe MongoIntegrationEnv.programmersSize
   }
@@ -116,7 +116,7 @@ class AkkaJoinMongoSpec extends TestKit(ActorSystem("akka-join-stream")) with Wo
         latch.countDown()
     }
 
-    latch.await()
+    latch.await(5, TimeUnit.SECONDS) mustBe true
     logger.info("Par: " + resRef.get)
     resRef.get.size mustBe PkLimit
   }
