@@ -20,10 +20,10 @@ import dsl.cassandra.CassandraQueryInterpreter
 import dsl.mongo.MongoQueryInterpreter
 import join.StorageModule
 import join.cassandra.{CassandraObservable, CassandraProcess, CassandraAkkaStream}
-import join.mongo.{MongoObservable, MongoProcess, MongoAkkaStream}
+import join.mongo._
 import mongo.channel.DBChannel
 import org.apache.log4j.Logger
-import com.mongodb.MongoException
+import com.mongodb.{MongoClient, DBObject, MongoException}
 import com.datastax.driver.core.{Row, Cluster}
 import rx.lang.scala.schedulers.ExecutionContextScheduler
 import rx.lang.scala.{ Subscriber, Observable }
@@ -136,11 +136,10 @@ package object storage {
         }
     }
 
-    case class CassandraProducer(
-                                  settings: QFree[CassandraObservable#QueryAttributes],
-                                  collection: String, resource: String, logger: Logger, client: CassandraObservable#Client,
-                                  subscriber: Subscriber[CassandraObservable#Record],
-                                  ctx: CassandraObservable#Context) extends ObservableProducer[CassandraObservable] {
+    case class CassandraProducer(settings: QFree[CassandraObservable#QueryAttributes],
+                                 collection: String, resource: String, logger: Logger,
+                                 client: CassandraObservable#Client, subscriber: Subscriber[CassandraObservable#Record],
+                                 ctx: CassandraObservable#Context) extends ObservableProducer[CassandraObservable] {
       private val defaultPageSize = 8
 
       override lazy val cursor: Try[CassandraObservable#Cursor] = Try {
@@ -242,11 +241,10 @@ package object storage {
                             ctx: CassandraObservable#Context) =
       new CassandraProducer(settings, collection, resource, logger, client, subscriber, ctx) with CassandraProducerOnFetchError
 
-    def cassandraCursorLookupError(settings: QFree[CassandraObservable#QueryAttributes],
-                                   collection: String, resource: String, logger: Logger,
-                                   client: CassandraObservable#Client,
-                                   subscriber: Subscriber[CassandraObservable#Record],
-                                   ctx: CassandraObservable#Context) =
+    def cassandraCursorError(settings: QFree[CassandraObservable#QueryAttributes],
+                             collection: String, resource: String, logger: Logger,
+                             client: CassandraObservable#Client, subscriber: Subscriber[CassandraObservable#Record],
+                             ctx: CassandraObservable#Context) =
       new CassandraProducer(settings, collection, resource, logger, client, subscriber, ctx) with CassandraProducerOnCursorError
   }
 
@@ -359,7 +357,7 @@ package object storage {
     }
 
     implicit object MongoStorageObservable extends Storage[MongoObservable] {
-      private def mongoObs(qs: QFree[MongoReadSettings], collection: String, resource: String,
+      private def mongoObs(qs: QFree[MongoObservable#QueryAttributes], collection: String, resource: String,
                            logger: Logger, client: MongoObservable#Client, ctx: MongoObservable#Context) =
         Observable { subscriber: Subscriber[MongoObservable#Record] ⇒
           subscriber.setProducer(ObservableProducer.mongo(qs, collection, resource, logger, client, subscriber, ctx).producer)
@@ -375,6 +373,50 @@ package object storage {
         client ⇒
           outer ⇒ mongoObs(relation(outer), collection, resource, logger, client, ctx)
     }
+
+    /** *******************************Mongo Observable Errors ************************************************************/
+    implicit object MongoObsCursorError extends Storage[MongoObsCursorError] {
+      type T = MongoObsCursorError
+
+      private def mongoObsCursorError(qs: QFree[T#QueryAttributes], collection: String, resource: String,
+                                      logger: Logger, client: T#Client, ctx: T#Context) =
+        Observable { subscriber: Subscriber[T#Record] ⇒
+          subscriber.setProducer(ObservableProducer.mongoOnCursorLookupError(qs, collection, resource, logger, client, subscriber, ctx).producer)
+        }.subscribeOn(scheduler(ctx))
+
+      override def outer(q: QFree[T#QueryAttributes], collection: String, resource: String,
+                         log: Logger, ctx: T#Context): (T#Client) => T#Stream[T#Record] =
+        client => mongoObsCursorError(q, collection, resource, log, client, ctx)
+
+      override def inner(relation: (T#Record) => QFree[T#QueryAttributes], collection: String, resource: String,
+                         log: Logger, ctx: T#Context): (T#Client) => (T#Record) => Observable[T#Record] =
+        client =>
+          outer =>
+            mongoObsCursorError(relation(outer), collection, resource, log, client, ctx)
+    }
+
+    implicit object MongoObsFetchError extends Storage[MongoObsFetchError] {
+      type T = MongoObsFetchError
+
+      private def mongoObsCursorError(qs: QFree[T#QueryAttributes], collection: String, resource: String,
+                                      logger: Logger, client: T#Client, ctx: T#Context) =
+        Observable { subscriber: Subscriber[T#Record] ⇒
+          subscriber.setProducer(ObservableProducer.mongoFetchError(qs, collection, resource, logger, client, subscriber, ctx).producer)
+        }.subscribeOn(scheduler(ctx))
+
+      override def outer(q: QFree[T#QueryAttributes], collection: String, resource: String,
+                         log: Logger, ctx: T#Context): (T#Client) => T#Stream[T#Record] =
+        client => mongoObsCursorError(q, collection, resource, log, client, ctx)
+
+      override def inner(relation: (T#Record) => QFree[T#QueryAttributes], collection: String, resource: String,
+                         log: Logger, ctx: T#Context): (T#Client) => (T#Record) => Observable[T#Record] =
+        client =>
+          outer =>
+            mongoObsCursorError(relation(outer), collection, resource, log, client, ctx)
+
+    }
+
+    /** *********************************************************************************************************************/
 
     implicit object CassandraStorageObservable extends Storage[CassandraObservable] {
       private def cassandraObs(qs: QFree[CassandraReadSettings], client: CassandraObservable#Client,
@@ -456,16 +498,16 @@ package object storage {
               session.execute(session.prepare(query).setConsistencyLevel(settings.consistencyLevel).bind(r.v)).iterator
             }
           })(c ⇒ Task.delay {
-            logger.info("★ ★ ★ The cursor has been exhausted"); session.close()
-          }) { c ⇒
-            Task.delay {
-              if (c.hasNext) {
-                val r = c.next
-                logger.debug(s"fetch $r")
-                r
-              } else {
-                throw Cause.Terminated(Cause.End)
-              }
+            logger.info("★ ★ ★ The cursor has been exhausted")
+            session.close()
+          }) { c ⇒ Task.delay {
+            if (c.hasNext) {
+              val r = c.next
+              logger.debug(s"fetch $r")
+              r
+            } else {
+              throw Cause.Terminated(Cause.End)
+            }
             }
           }
         }

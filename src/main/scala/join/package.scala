@@ -13,6 +13,7 @@
  */
 
 import akka.stream.scaladsl._
+import join.mongo.{MongoObsFetchError, MongoObsCursorError}
 
 /**
  *
@@ -52,7 +53,7 @@ package object join {
    * Also we ask for [[DBModule#Context]] and [[DBModule#Client]]. They are our external dependencies
    *
    */
-  final case class Join[DBModule <: StorageModule: Joiner: Storage](implicit ctx: DBModule#Context, client: DBModule#Client, t: ClassTag[DBModule]) {
+  case class Join[DBModule <: StorageModule : Joiner : Storage](implicit ctx: DBModule#Context, client: DBModule#Client, t: ClassTag[DBModule]) {
     implicit val logger = org.apache.log4j.Logger.getLogger(s"${t.runtimeClass.getName.dropWhile(_ != '$').drop(1)}-producer-join")
 
     def join[A](outerQ: QFree[DBModule#QueryAttributes], outerColl: String,
@@ -86,6 +87,22 @@ package object join {
         for { id ← outer; rs ← relation(id).map(mapper(id, _))  } yield rs
     }
 
+    implicit object MongoOCursorError extends Joiner[MongoObsCursorError] {
+      override def join[A, B, C](outer: MongoObsCursorError#Stream[A])(relation: A ⇒ MongoObsCursorError#Stream[B])(mapper: (A, B) ⇒ C)
+                                (implicit ctx: MongoObsCursorError#Context): MongoObsCursorError#Stream[C] =
+        for {id ← outer; rs ← relation(id).map(mapper(id, _))} yield {
+          rs
+        }
+    }
+
+    implicit object MongoOFetchError extends Joiner[MongoObsFetchError] {
+      override def join[A, B, C](outer: MongoObsFetchError#Stream[A])(relation: A ⇒ MongoObsFetchError#Stream[B])(mapper: (A, B) ⇒ C)
+                                (implicit ctx: MongoObsFetchError#Context): MongoObsFetchError#Stream[C] =
+        for {id ← outer; rs ← relation(id).map(mapper(id, _))} yield {
+          rs
+        }
+    }
+    
     implicit object CassandraP extends Joiner[CassandraProcess] {
       override def join[A, B, C](outer: CassandraProcess#Stream[A])(relation: A ⇒ CassandraProcess#Stream[B])(mapper: (A, B) ⇒ C)
                                 (implicit ctx: CassandraProcess#Context): CassandraProcess#Stream[C] = {

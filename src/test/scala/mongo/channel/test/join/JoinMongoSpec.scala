@@ -14,11 +14,8 @@
 
 package mongo.channel.test.join
 
-import java.util.concurrent.CountDownLatch
+import java.util.concurrent.{TimeUnit, CountDownLatch}
 import java.util.concurrent.atomic.AtomicLong
-
-import com.mongodb.DBObject
-
 import mongo.channel.test.{ MongoDbEnviroment, MongoIntegrationEnv }
 import org.scalatest.concurrent.ScalaFutures
 import org.specs2.mutable.Specification
@@ -34,27 +31,39 @@ import scalaz.stream.io
 class JoinMongoSpec extends Specification with ScalaFutures {
   import MongoIntegrationEnv._
   import join.Join
-  import join.mongo.{ MongoProcess, MongoObservable }
+  import join.mongo.{MongoProcess, MongoObservable, MongoObsCursorError, MongoObsFetchError}
   import mongo._
   import dsl.mongo._
 
-  def cmd: (DBObject, DBObject) ⇒ String =
-    (outer, inner) ⇒
-      s"PK:${outer.get("index")} - [FK:${inner.get("lang")} - ${inner.get("name")}]"
+  val qLang = for {q ← "index" $gte 0 $lte 5} yield {
+    q
+  }
+
+  val pageSize = 7
+
+  def count = new CountDownLatch(1)
+
+  def responses = new AtomicLong(0)
 
   "Join with MongoProcess" in new MongoDbEnviroment {
     initMongo
+
+    type T = MongoProcess
+
+    def qProg(outer: T#Record) =
+      for {q ← "lang" $eq outer.get("index").asInstanceOf[Int]} yield {
+        q
+      }
+
+    val cmd: (T#Record, T#Record) ⇒ String =
+      (outer, inner) ⇒
+        s"PK:${outer.get("index")} - [FK:${inner.get("lang")} - ${inner.get("name")}]"
 
     val buffer = mutable.Buffer.empty[String]
     val SinkBuffer = io.fillBuffer(buffer)
     implicit val c = client
 
-    val qLang = for { q ← "index" $gte 0 $lte 5 } yield q
-    def qProg(outer: DBObject) = for { q ← "lang" $eq outer.get("index").asInstanceOf[Int] } yield q
-
-    val joinQuery = Join[MongoProcess].join(qLang, LANGS, qProg(_), PROGRAMMERS, TEST_DB) { (outer, inner) ⇒
-      s"PK:${outer.get("index")} - [FK:${inner.get("lang")} - ${inner.get("name")}]"
-    }
+    val joinQuery = Join[T].join(qLang, LANGS, qProg(_), PROGRAMMERS, TEST_DB)(cmd)
 
     val p = for {
       joinLine ← eval(Task.now(client)) through joinQuery.out
@@ -68,37 +77,39 @@ class JoinMongoSpec extends Specification with ScalaFutures {
   "Join with MongoObservable" in new MongoDbEnviroment {
     initMongo
 
-    val pageSize = 7
-    val count = new CountDownLatch(1)
-    val responses = new AtomicLong(0)
+    type T = MongoObservable
+
+    def qProg(outer: T#Record) =
+      for {q ← "lang" $eq outer.get("index").asInstanceOf[Int]} yield {
+        q
+      }
+
+    val cmd: (T#Record, T#Record) ⇒ String =
+      (outer, inner) ⇒
+        s"PK:${outer.get("index")} - [FK:${inner.get("lang")} - ${inner.get("name")}]"
+
+    val c0 = count
+    val res = responses
     implicit val c = client
 
-    val qLang = for {q ← "index" $gte 0 $lte 5} yield {
-      q
-    }
-
-    def qProg(left: DBObject) = for {q ← "lang" $eq left.get("index").asInstanceOf[Int]} yield {
-      q
-    }
-
-    val query = Join[MongoObservable].join(qLang, LANGS, qProg(_), PROGRAMMERS, TEST_DB)(cmd)
+    val query = Join[T].join(qLang, LANGS, qProg(_), PROGRAMMERS, TEST_DB)(cmd)
 
     val S = new Subscriber[String] {
-      override def onStart() = request(1)
+      override def onStart() = request(pageSize)
       override def onNext(n: String) = {
         logger.info(s"onNext: $n")
-        if (responses.getAndIncrement() % pageSize == 0) {
+        if (res.getAndIncrement() % pageSize == 0) {
           logger.info(s"★ ★ ★ Fetched page:[$pageSize] ★ ★ ★ ")
           request(pageSize)
         }
       }
       override def onError(e: Throwable) = {
         logger.info(s"★ ★ ★  MongoObservable has been completed with error: ${e.getMessage}")
-        count.countDown()
+        c0.countDown()
       }
       override def onCompleted() = {
         logger.info("★ ★ ★   MongoObservable has been completed")
-        count.countDown()
+        c0.countDown()
       }
     }
 
@@ -106,7 +117,103 @@ class JoinMongoSpec extends Specification with ScalaFutures {
       .observeOn(ExecutionContextScheduler(ExecutionContext.fromExecutor(executor)))
       .subscribe(S)
 
-    count.await()
-    responses.get === MongoIntegrationEnv.programmersSize
+    c0.await()
+    res.get === MongoIntegrationEnv.programmersSize
+  }
+
+  "Run Mongo Observable with MongoObsCursorError error" in new MongoDbEnviroment {
+    initMongo
+    type T = MongoObsCursorError
+    val qLang = for {q ← "index" $gte 0 $lte 5} yield {
+      q
+    }
+
+    def qProg(outer: T#Record) =
+      for {q ← "lang" $eq outer.get("index").asInstanceOf[Int]} yield {
+        q
+      }
+
+    val cmd: (T#Record, T#Record) ⇒ String =
+      (outer, inner) ⇒
+        s"PK:${outer.get("index")} - [FK:${inner.get("lang")} - ${inner.get("name")}]"
+
+    val c0 = count
+    val res = responses
+    implicit val c = client
+
+    val query = Join[T].join(qLang, LANGS, qProg(_), PROGRAMMERS, TEST_DB)(cmd)
+
+    val S = new Subscriber[String] {
+      override def onStart() = request(pageSize)
+
+      override def onNext(n: String) = {
+        logger.info(s"onNext: $n")
+        if (responses.getAndIncrement() % pageSize == 0) {
+          request(pageSize)
+        }
+      }
+
+      override def onError(e: Throwable) = {
+        logger.info(s"★ ★ ★  MongoObservable has been completed with error: ${e.getMessage}")
+        c0.countDown()
+      }
+
+      override def onCompleted() =
+        logger.info("★ ★ ★  MongoObservable has been completed")
+    }
+
+    query
+      .observeOn(ExecutionContextScheduler(ExecutionContext.fromExecutor(executor)))
+      .subscribe(S)
+
+    c0.await(5, TimeUnit.SECONDS) mustEqual true
+  }
+
+  "Run Mongo Observable with MongoObsFetchError" in new MongoDbEnviroment {
+    initMongo
+    type T = MongoObsFetchError
+    val qLang = for {q ← "index" $gte 0 $lte 5} yield {
+      q
+    }
+
+    def qProg(outer: T#Record) =
+      for {q ← "lang" $eq outer.get("index").asInstanceOf[Int]} yield {
+        q
+      }
+
+    val cmd: (T#Record, T#Record) ⇒ String =
+      (outer, inner) ⇒
+        s"PK:${outer.get("index")} - [FK:${inner.get("lang")} - ${inner.get("name")}]"
+
+    val c0 = count
+    val res = responses
+    implicit val c = client
+
+    val query = Join[T].join(qLang, LANGS, qProg(_), PROGRAMMERS, TEST_DB)(cmd)
+
+    val S = new Subscriber[String] {
+      override def onStart() = request(pageSize)
+
+      override def onNext(n: String) = {
+        logger.info(s"onNext: $n")
+        if (responses.getAndIncrement() % pageSize == 0) {
+          request(pageSize)
+        }
+      }
+
+      override def onError(e: Throwable) = {
+        logger.info(s"★ ★ ★  MongoObservable has been completed with error: ${e.getMessage}")
+        c0.countDown()
+      }
+
+      override def onCompleted() =
+        logger.info("★ ★ ★  MongoObservable has been completed")
+    }
+
+    query
+      .observeOn(ExecutionContextScheduler(ExecutionContext.fromExecutor(executor)))
+      .subscribe(S)
+
+    c0.await(5, TimeUnit.SECONDS) mustEqual true
   }
 }

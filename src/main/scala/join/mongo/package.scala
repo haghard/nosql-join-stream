@@ -21,7 +21,7 @@ package object mongo {
   case class MongoReadSettings(query: com.mongodb.DBObject, sort: Option[com.mongodb.DBObject] = None,
                                limit: Option[Int] = None, skip: Option[Int] = None)
 
-  private[mongo] trait MongoStorage extends StorageModule {
+  abstract trait MongoStorage extends StorageModule {
     override type Client = com.mongodb.MongoClient
     override type Record = com.mongodb.DBObject
     override type QueryAttributes = MongoReadSettings
@@ -37,6 +37,10 @@ package object mongo {
     override type Stream[Out] = rx.lang.scala.Observable[Out]
     override type Context = java.util.concurrent.ExecutorService
   }
+
+  trait MongoObsCursorError extends MongoObservable
+
+  trait MongoObsFetchError extends MongoObservable
 
   trait MongoAkkaStream extends MongoStorage {
     override type Stream[Out] = akka.stream.scaladsl.Source[Out, Unit]
