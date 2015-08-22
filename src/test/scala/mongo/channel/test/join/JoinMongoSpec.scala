@@ -38,6 +38,10 @@ class JoinMongoSpec extends Specification with ScalaFutures {
   import mongo._
   import dsl.mongo._
 
+  def cmd: (DBObject, DBObject) ⇒ String =
+    (outer, inner) ⇒
+      s"PK:${outer.get("index")} - [FK:${inner.get("lang")} - ${inner.get("name")}]"
+
   "Join with MongoProcess" in new MongoDbEnviroment {
     initMongo
 
@@ -64,34 +68,33 @@ class JoinMongoSpec extends Specification with ScalaFutures {
   "Join with MongoObservable" in new MongoDbEnviroment {
     initMongo
 
-    implicit val c = client
-
-    val qLang = for { q ← "index" $gte 0 $lte 5 } yield q
-    def qProg(left: DBObject) = for { q ← "lang" $eq left.get("index").asInstanceOf[Int] } yield q
-
-    val query = Join[MongoObservable].join(qLang, LANGS, qProg(_), PROGRAMMERS, TEST_DB) { (outer, inner) ⇒
-      s"PK:${outer.get("index")} - [FK:${inner.get("lang")} - ${inner.get("name")}]"
-    }
-
     val pageSize = 7
     val count = new CountDownLatch(1)
     val responses = new AtomicLong(0)
+    implicit val c = client
+
+    val qLang = for { q ← "index" $gte 0 $lte 5 } yield q
+    def qProg(left: DBObject) = for {q ← "lang" $eq left.get("index").asInstanceOf[Int]} yield {
+      q
+    }
+
+    val query = Join[MongoObservable].join(qLang, LANGS, qProg(_), PROGRAMMERS, TEST_DB)(cmd)
 
     val S = new Subscriber[String] {
       override def onStart() = request(1)
       override def onNext(n: String) = {
-        logger.info(n)
+        logger.info(s"onNext: $n")
         if (responses.getAndIncrement() % pageSize == 0) {
           logger.info(s"★ ★ ★ Fetched page:[$pageSize] ★ ★ ★ ")
           request(pageSize)
         }
       }
       override def onError(e: Throwable) = {
-        logger.info(s"OnError: ${e.getMessage}")
+        logger.info(s"★ ★ ★  MongoObservable has been completed with error: ${e.getMessage}")
         count.countDown()
       }
       override def onCompleted() = {
-        logger.info("Interaction has been completed")
+        logger.info("★ ★ ★   MongoObservable has been completed")
         count.countDown()
       }
     }

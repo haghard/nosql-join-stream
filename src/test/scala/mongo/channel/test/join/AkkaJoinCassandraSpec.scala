@@ -48,7 +48,8 @@ class AkkaJoinCassandraSpec extends TestKit(ActorSystem("akka-join-stream")) wit
   } yield q
 
   def fold = { (acc: List[String], cur: String) ⇒ acc :+ cur }
-  def cmb: (CRow, CRow) ⇒ String =
+
+  def cmb: (CassandraAkkaStream#Record, CassandraAkkaStream#Record) ⇒ String =
     (outer, inner) ⇒
       s"Sensor №${outer.getLong("sensor")} - time: ${inner.getLong("event_time")} temperature: ${inner.getDouble("temperature")} "
 
@@ -72,7 +73,7 @@ class AkkaJoinCassandraSpec extends TestKit(ActorSystem("akka-join-stream")) wit
           resRef.set(r)
           latch.countDown()
         case Failure(ex) ⇒
-          fail("Sequentual cassandra join error:" + ex.getMessage)
+          fail("★ ★ ★ CassandraAkkaStream sequentual has been competed with error:" + ex.getMessage)
           latch.countDown()
       }
 
@@ -103,7 +104,7 @@ class AkkaJoinCassandraSpec extends TestKit(ActorSystem("akka-join-stream")) wit
           resRef.set(r)
           latch.countDown()
         case Failure(ex) ⇒
-          fail("CassandraJoinPar with Akka Streams error:" + ex.getMessage)
+          fail("★ ★ ★ CassandraAkkaStream par has been competed with error::" + ex.getMessage)
           latch.countDown()
       }
       latch.await

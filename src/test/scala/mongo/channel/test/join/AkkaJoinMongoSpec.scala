@@ -50,7 +50,7 @@ class AkkaJoinMongoSpec extends TestKit(ActorSystem("akka-join-stream")) with Wo
 
   def folder = { (acc: List[String], cur: String) ⇒ acc :+ cur }
 
-  def cmb: (DBObject, DBObject) ⇒ String =
+  def cmb: (MongoAkkaStream#Record, MongoAkkaStream#Record) ⇒ String =
     (outer, inner) ⇒
       s"""[PK:${outer.get("index")}] - [FK:${inner.get("lang")} - ${inner.get("name")}]"""
 
@@ -82,7 +82,7 @@ class AkkaJoinMongoSpec extends TestKit(ActorSystem("akka-join-stream")) with Wo
         resRef.set(r)
         latch.countDown()
       case Failure(ex) ⇒
-        logger.info("***** Sequentual akka join error:" + ex.getMessage)
+        logger.info("★ ★ ★ MongoAkkaStream seq has been competed with error:" + ex.getMessage)
         latch.countDown()
     }
 
@@ -93,11 +93,11 @@ class AkkaJoinMongoSpec extends TestKit(ActorSystem("akka-join-stream")) with Wo
 
   "MongoJoinPar with Akka Streams" in new MongoDbEnviroment {
     initMongo
+    implicit val c = client
+
     val latch = new CountDownLatch(1)
     val resRef = new AtomicReference(List.empty[String])
     import scalaz.std.AllInstances._
-
-    implicit val c = client
 
     val settings = ActorMaterializerSettings(system).withDispatcher("akka.join-dispatcher")
     implicit val Attributes = \/-(AkkaConcurrentAttributes(settings, system, 4, scalaz.Monoid[String]))
@@ -112,7 +112,7 @@ class AkkaJoinMongoSpec extends TestKit(ActorSystem("akka-join-stream")) with Wo
         resRef.set(r)
         latch.countDown()
       case Failure(ex) ⇒
-        logger.info("*****Parallel akka join error:" + ex.getMessage)
+        logger.info("★ ★ ★  MongoAkkaStream parallel has been competed with error:" + ex.getMessage)
         latch.countDown()
     }
 

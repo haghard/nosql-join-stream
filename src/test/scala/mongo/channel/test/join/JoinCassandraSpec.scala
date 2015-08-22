@@ -40,7 +40,13 @@ class JoinCassandraSpec extends WordSpecLike with Matchers with TemperatureEnvir
     _ ← select("SELECT sensor, event_time, temperature FROM {0} WHERE sensor = ?")
     _ ← fk[java.lang.Long]("sensor", r.getLong("sensor"))
     q ← readConsistency(ConsistencyLevel.ONE)
-  } yield q
+  } yield {
+      q
+    }
+
+  def cmb: (CassandraObservable#Record, CassandraObservable#Record) ⇒ String =
+    (outer, inner) ⇒
+      s"Sensor №${outer.getLong("sensor")} - time: ${inner.getLong("event_time")} temperature: ${inner.getDouble("temperature")}"
 
   "Join with CassandraProcess" should {
     "have run" in {
@@ -51,16 +57,18 @@ class JoinCassandraSpec extends WordSpecLike with Matchers with TemperatureEnvir
 
       implicit val client = Cluster.builder().addContactPointsWithPorts(cassandraHost).build
 
-      val joinQuery = Join[CassandraProcess].join(qSensors, SENSORS, qTemperature, TEMPERATURE, KEYSPACE) { (outer, inner) ⇒
-        s"Sensor №${outer.getLong("sensor")} - time: ${inner.getLong("event_time")} temperature: ${inner.getDouble("temperature")}"
-      }
+      val joinQuery = Join[CassandraProcess].join(qSensors, SENSORS, qTemperature, TEMPERATURE, KEYSPACE)(cmb)
 
       (for {
         row ← P.eval(Task.now(client)) through joinQuery.out
         _ ← row observe LoggerS to BufferSink //thread safe since we write from single thread
       } yield ())
-        .onFailure { th ⇒ logger.debug(s"Failure: ${th.getMessage}"); P.halt }
-        .onComplete { P.eval_(Task.delay { client.close(); logger.debug("Join has been completed") }) }
+        .onFailure { ex ⇒ logger.debug(s"CassandraProcess has been completed with error: ${ex.getMessage}"); P.halt }
+        .onComplete {
+        P.eval_(Task.delay {
+          client.close(); logger.info("★ ★ ★  CassandraProcess has been completed")
+        })
+      }
         .runLog.run
 
       logger.info("Join with CassandraProcess: " + buffer.size)
@@ -72,16 +80,16 @@ class JoinCassandraSpec extends WordSpecLike with Matchers with TemperatureEnvir
   "Join with CassandraObservable" should {
     "have run" in {
       val pageSize = 7
+      val count = new AtomicLong(0)
       val done = new CountDownLatch(1)
+      val RxExecutor = ExecutionContextScheduler(ExecutionContext.fromExecutor(executor))
+
       implicit val client = Cluster.builder().addContactPointsWithPorts(cassandraHost).build
       val state = new AtomicReference(Vector.empty[String])
 
-      val joinQuery = Join[CassandraObservable].join(qSensors, SENSORS, qTemperature, TEMPERATURE, KEYSPACE) { (outer, inner) ⇒
-        s"Sensor №${outer.getLong("sensor")} - time: ${inner.getLong("event_time")} temperature: ${inner.getDouble("temperature")}"
-      }
+      val joinQuery =
+        Join[CassandraObservable].join(qSensors, SENSORS, qTemperature, TEMPERATURE, KEYSPACE)(cmb)
 
-      val RxExecutor = ExecutionContextScheduler(ExecutionContext.fromExecutor(executor))
-      val count = new AtomicLong(0)
       val S = new Subscriber[String] {
         override def onStart() = request(pageSize)
 
@@ -91,16 +99,16 @@ class JoinCassandraSpec extends WordSpecLike with Matchers with TemperatureEnvir
             override def apply(t: Vector[String]) = t :+ next
           })
           if (count.getAndIncrement() % pageSize == 0) {
-            logger.info(s"★ ★ ★ Fetched page:[$pageSize] ★ ★ ★ ")
+            logger.info(s"★ ★ ★  Fetched page:[$pageSize] ★ ★ ★ ")
             request(pageSize)
           }
         }
         override def onError(e: Throwable) = {
-          logger.info(s"OnError: ${e.getMessage}")
+          logger.info(s"★ ★ ★  CassandraObservable has been completed with error: ${e.getMessage}")
           done.countDown()
         }
         override def onCompleted() = {
-          logger.info("Join has been completed")
+          logger.info("★ ★ ★  CassandraObservable has been completed")
           client.close()
           done.countDown()
         }
