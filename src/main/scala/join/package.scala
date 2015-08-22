@@ -53,18 +53,14 @@ package object join {
    *
    */
   final case class Join[DBModule <: StorageModule: Joiner: Storage](implicit ctx: DBModule#Context, client: DBModule#Client, t: ClassTag[DBModule]) {
-    implicit val logger = org.apache.log4j.Logger.getLogger(s"${t.runtimeClass.getName.dropWhile(_ != '$').drop(1)}-Producer-join")
+    implicit val logger = org.apache.log4j.Logger.getLogger(s"${t.runtimeClass.getName.dropWhile(_ != '$').drop(1)}-producer-join")
 
-    /**
-     *
-     * @return DBModule#Stream[A]
-     */
-    def join[A](outerQ: QFree[DBModule#QueryAttributes], outerC: String,
-                innerQ: DBModule#Record ⇒ QFree[DBModule#QueryAttributes], innerC: String, resource: String)
+    def join[A](outerQ: QFree[DBModule#QueryAttributes], outerColl: String,
+                innerQ: DBModule#Record ⇒ QFree[DBModule#QueryAttributes], innerColl: String, resource: String)
                 (mapper: (DBModule#Record, DBModule#Record) ⇒ A): DBModule#Stream[A] = {
       val storage = Storage[DBModule]
-      val outer = storage.outer(outerQ, outerC, resource, logger, ctx)(client)
-      val relation = storage.inner(innerQ, innerC, resource, logger, ctx)(client)
+      val outer = storage.outer(outerQ, outerColl, resource, logger, ctx)(client)
+      val relation = storage.inner(innerQ, innerColl, resource, logger, ctx)(client)
       Joiner[DBModule].join[DBModule#Record, DBModule#Record, A](outer)(relation)(mapper)
     }
   }

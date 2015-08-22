@@ -73,7 +73,10 @@ class JoinMongoSpec extends Specification with ScalaFutures {
     val responses = new AtomicLong(0)
     implicit val c = client
 
-    val qLang = for { q ← "index" $gte 0 $lte 5 } yield q
+    val qLang = for {q ← "index" $gte 0 $lte 5} yield {
+      q
+    }
+
     def qProg(left: DBObject) = for {q ← "lang" $eq left.get("index").asInstanceOf[Int]} yield {
       q
     }

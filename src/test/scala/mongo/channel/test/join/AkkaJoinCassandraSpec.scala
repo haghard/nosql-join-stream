@@ -33,10 +33,11 @@ import scalaz.{ -\/, \/- }
 
 class AkkaJoinCassandraSpec extends TestKit(ActorSystem("akka-join-stream")) with WordSpecLike
     with MustMatchers with BeforeAndAfterEach with BeforeAndAfterAll with TemperatureEnviroment {
-  implicit val dispatcher = system.dispatchers.lookup("akka.join-dispatcher")
-  override def afterAll() = TestKit.shutdownActorSystem(system)
 
   import dsl.cassandra._
+
+  implicit val dispatcher = system.dispatchers.lookup("akka.join-dispatcher")
+  override def afterAll() = TestKit.shutdownActorSystem(system)
 
   val selectSensor = "SELECT sensor FROM {0}"
   val qSensors = for { q ← select(selectSensor) } yield q
