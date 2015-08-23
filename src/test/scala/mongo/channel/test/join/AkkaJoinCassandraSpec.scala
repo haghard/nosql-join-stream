@@ -90,12 +90,11 @@ class AkkaJoinCassandraSpec extends TestKit(ActorSystem("akka-join-stream")) wit
       val resRef = new AtomicReference(List[String]())
 
       val settings = ActorMaterializerSettings(system).withDispatcher("akka.join-dispatcher")
-      implicit val Attributes = \/-(AkkaConcurrentAttributes(settings, system, 4, scalaz.Monoid[String]))
+      implicit val Attributes = \/-(AkkaConcurrentAttributes(settings, system, 4, scalaz.Semigroup[String]))
 
       implicit val client = Cluster.builder().addContactPointsWithPorts(cassandraHost).build
 
-      val parSource =
-        Join[CassandraAkkaStream].join(qSensors, SENSORS, qTemperature, TEMPERATURE, KEYSPACE)(cmb)
+      val parSource = Join[CassandraAkkaStream].join(qSensors, SENSORS, qTemperature, TEMPERATURE, KEYSPACE)(cmb)
 
       val future = parSource
         .runWith(Sink.fold(List.empty[String])(fold))(ActorMaterializer(settings)(system))

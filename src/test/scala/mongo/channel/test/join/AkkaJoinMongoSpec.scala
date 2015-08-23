@@ -70,9 +70,7 @@ class AkkaJoinMongoSpec extends TestKit(ActorSystem("akka-join-stream")) with Wo
 
     implicit val Attributes = -\/(system)
 
-    val joinSource =
-      Join[MongoAkkaStream]
-        .join(qLang, LANGS, qProg(_), PROGRAMMERS, TEST_DB)(cmb)
+    val joinSource = Join[MongoAkkaStream].join(qLang, LANGS, qProg(_), PROGRAMMERS, TEST_DB)(cmb)
 
     val futureSeq = joinSource
       .runWith(Sink.fold(List.empty[String])(folder))(materializer)
@@ -100,7 +98,7 @@ class AkkaJoinMongoSpec extends TestKit(ActorSystem("akka-join-stream")) with Wo
     import scalaz.std.AllInstances._
 
     val settings = ActorMaterializerSettings(system).withDispatcher("akka.join-dispatcher")
-    implicit val Attributes = \/-(AkkaConcurrentAttributes(settings, system, 4, scalaz.Monoid[String]))
+    implicit val Attributes = \/-(AkkaConcurrentAttributes(settings, system, 4, scalaz.Semigroup[String]))
 
     val parSource = Join[MongoAkkaStream].join(qLang, LANGS, qProg(_), PROGRAMMERS, TEST_DB)(cmb)
 

@@ -23,8 +23,8 @@ import join.cassandra.{CassandraObservable, CassandraProcess, CassandraAkkaStrea
 import join.mongo._
 import mongo.channel.DBChannel
 import org.apache.log4j.Logger
-import com.mongodb.{MongoClient, DBObject, MongoException}
-import com.datastax.driver.core.{Row, Cluster}
+import com.mongodb.MongoException
+import com.datastax.driver.core.Cluster
 import rx.lang.scala.schedulers.ExecutionContextScheduler
 import rx.lang.scala.{ Subscriber, Observable }
 import scala.annotation.tailrec
@@ -92,10 +92,9 @@ package object storage {
 
     import QueryInterpreter._
 
-    case class MongoProducer(
-                              settings: QFree[MongoObservable#QueryAttributes],
-                              collection: String, resource: String, logger: Logger, client: MongoObservable#Client,
-                              subscriber: Subscriber[MongoObservable#Record], ctx: MongoObservable#Context)
+    case class MongoProducer(settings: QFree[MongoObservable#QueryAttributes], collection: String,
+                             resource: String, logger: Logger, client: MongoObservable#Client,
+                             subscriber: Subscriber[MongoObservable#Record], ctx: MongoObservable#Context)
       extends ObservableProducer[MongoObservable] {
       override lazy val cursor: Try[MongoObservable#Cursor] = Try {
         val qs = implicitly[QueryInterpreter[MongoObservable]].interpret(settings)
@@ -248,11 +247,11 @@ package object storage {
       new CassandraProducer(settings, collection, resource, logger, client, subscriber, ctx) with CassandraProducerOnCursorError
   }
 
-  private[storage] trait QueryInterpreter[T <: StorageModule] {
+  trait QueryInterpreter[T <: StorageModule] {
     def interpret(q: QFree[T#QueryAttributes]): T#QueryAttributes
   }
 
-  private[storage] trait DbIterator[Module <: StorageModule] extends Iterator[Module#Record] {
+  trait DbIterator[Module <: StorageModule] extends Iterator[Module#Record] {
     def logger: Logger
     def resource: String
     def collection: String
@@ -311,7 +310,7 @@ package object storage {
       CassandraIterator(settings, client, resource, collection, logger)
   }
 
-  abstract class Storage[T <: StorageModule] {
+  trait Storage[T <: StorageModule] {
     def outer(q: QFree[T#QueryAttributes], collection: String, resource: String,
               log: Logger, ctx: T#Context): T#Client ⇒ T#Stream[T#Record]
 
@@ -331,9 +330,9 @@ package object storage {
         client =>
           Source(() => DbIterator.cassandra(qs, client, resource, collection, log))
 
-      override def inner(r: (Row) => QFree[CassandraAkkaStream#QueryAttributes], collection: String, resource: String,
+      override def inner(r: (CassandraAkkaStream#Record) => QFree[CassandraAkkaStream#QueryAttributes], collection: String, resource: String,
                          log: Logger, ctx: CassandraAkkaStream#Context):
-      (CassandraAkkaStream#Client) => (CassandraAkkaStream#Record) => Source[CassandraAkkaStream#Record, Unit] = {
+      (CassandraAkkaStream#Client) => (CassandraAkkaStream#Record) => CassandraAkkaStream#Stream[CassandraAkkaStream#Record] = {
         client =>
           outer =>
             Source(() => DbIterator.cassandra(r(outer), client, resource, collection, log))

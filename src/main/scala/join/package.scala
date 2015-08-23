@@ -13,7 +13,6 @@
  */
 
 import akka.stream.scaladsl._
-import join.mongo.{MongoObsFetchError, MongoObsCursorError}
 
 /**
  *
@@ -72,7 +71,8 @@ package object join {
   }
 
   object Joiner {
-    import join.mongo.{ MongoObservable, MongoProcess, MongoAkkaStream }
+
+    import join.mongo.{MongoObservable, MongoProcess, MongoAkkaStream, MongoObsCursorError, MongoObsFetchError}
     import join.cassandra.{ CassandraObservable, CassandraProcess, CassandraAkkaStream }
 
     implicit object MongoP extends Joiner[MongoProcess] {
@@ -129,7 +129,7 @@ package object join {
                                 (implicit ctx: MongoAkkaStream#Context): MongoAkkaStream#Stream[C] =
       ctx.fold(system => akkaSequentualSource(outer, relation, mapper, system), { ctxData =>
         akkaParallelSource(outer, relation, mapper, ctxData.parallelism) (akka.stream.ActorMaterializer(ctxData.setting)(ctxData.system),
-          ctxData.M.asInstanceOf[scalaz.Monoid[C]])
+          ctxData.S.asInstanceOf[scalaz.Semigroup[C]])
       })
     }
 
@@ -139,23 +139,22 @@ package object join {
                                 (implicit ctx: CassandraAkkaStream#Context): CassandraAkkaStream#Stream[C] = {
         ctx.fold(system => akkaSequentualSource(outer, relation, mapper, system), { ctxData =>
           akkaParallelSource(outer, relation, mapper, ctxData.parallelism) (akka.stream.ActorMaterializer(ctxData.setting)(ctxData.system),
-            ctxData.M.asInstanceOf[scalaz.Monoid[C]])
+            ctxData.S.asInstanceOf[scalaz.Semigroup[C]])
         })
       }
     }
 
     private def akkaParallelSource[A, B, C](outer: AkkaSource[A], relation: (A) => AkkaSource[B], cmb: (A, B) => C, parallelism: Int)
-                                           (implicit Mat: akka.stream.ActorMaterializer, M: scalaz.Monoid[C]): AkkaSource[C] = {
+                                           (implicit Mat: akka.stream.ActorMaterializer, S: scalaz.Semigroup[C] /*scalaz.Monoid[C]*/): AkkaSource[C] = {
       outer.via(Flow[A].mapAsyncUnordered(parallelism) { ids =>
         relation(ids).map(b => cmb(ids, b)).runFold(List[C]())(_ :+ _)
-      }).conflate(_.reduce(M.append(_,_))) ((line, list) => M.append(line, list.reduce(M.append(_,_))))
+      }).conflate(_.reduce(S.append(_, _)))((line, list) => S.append(line, list.reduce(S.append(_, _))))
     }
 
     case class AkkaConcurrentAttributes(setting: akka.stream.ActorMaterializerSettings,
                                         system: akka.actor.ActorSystem,
                                         parallelism: Int,
-                                        M: scalaz.Monoid[T] forSome { type T })
-
+                                        S: scalaz.Semigroup[T] forSome {type T} /*scalaz.Monoid[T] forSome { type T }*/)
 
     def apply[T <: StorageModule: Joiner: Storage]: Joiner[T] = implicitly[Joiner[T]]
   }

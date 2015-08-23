@@ -23,24 +23,28 @@ package object cassandra {
   case class CassandraReadSettings(query: String, v: Option[CassandraParamValue] = None,
                                    consistencyLevel: ConsistencyLevel = ConsistencyLevel.ONE)
 
-  private[cassandra] trait CassandraStorage extends StorageModule {
+  abstract sealed trait Cassandra extends StorageModule {
     override type Client = com.datastax.driver.core.Cluster
     override type Record = com.datastax.driver.core.Row
     override type QueryAttributes = CassandraReadSettings
     override type Cursor = java.util.Iterator[com.datastax.driver.core.Row]
   }
 
-  trait CassandraObservable extends CassandraStorage {
+  trait CassandraObservable extends Cassandra {
     override type Stream[Out] = rx.lang.scala.Observable[Out]
     override type Context = java.util.concurrent.ExecutorService
   }
 
-  trait CassandraProcess extends CassandraStorage {
+  trait CassandraObsCursorError extends CassandraObservable
+
+  trait CassandraObsFetchError extends CassandraObservable
+
+  trait CassandraProcess extends Cassandra {
     override type Stream[Out] = _root_.mongo.channel.DBChannel[Client, Out]
     override type Context = java.util.concurrent.ExecutorService
   }
 
-  trait CassandraAkkaStream extends CassandraStorage {
+  trait CassandraAkkaStream extends Cassandra {
     override type Stream[Out] = akka.stream.scaladsl.Source[Out, Unit]
     override type Context = akka.actor.ActorSystem \/ join.Joiner.AkkaConcurrentAttributes
   }
