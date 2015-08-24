@@ -14,12 +14,16 @@
 
 package mongo.channel.test
 
+import _root_.join.StorageModule
 import com.mongodb.MongoClient
 import de.bwaldvogel.mongo.MongoServer
 import org.specs2.mutable.After
 
 trait MongoDbEnviroment extends After {
   import MongoIntegrationEnv._
+
+  type Module <: StorageModule
+
   val logger = org.apache.log4j.Logger.getLogger("MongoStreams-Mongo-Enviroment")
   var client: MongoClient = _
   var server: MongoServer = _

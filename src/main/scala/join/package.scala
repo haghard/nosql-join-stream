@@ -14,6 +14,7 @@
 
 import akka.stream.scaladsl._
 
+
 /**
  *
  * Based on idea from: http://io.pellucid.com/blog/abstract-algebraic-data-type
@@ -73,7 +74,7 @@ package object join {
   object Joiner {
 
     import join.mongo.{MongoObservable, MongoProcess, MongoAkkaStream, MongoObsCursorError, MongoObsFetchError}
-    import join.cassandra.{ CassandraObservable, CassandraProcess, CassandraAkkaStream }
+    import join.cassandra.{CassandraObservable, CassandraProcess, CassandraAkkaStream, CassandraObsFetchError, CassandraObsCursorError}
 
     implicit object MongoP extends Joiner[MongoProcess] {
       def join[A, B, C](outer: MongoProcess#Stream[A])(relation: A ⇒ MongoProcess#Stream[B])(mapper: (A, B) ⇒ C)
@@ -102,19 +103,49 @@ package object join {
           rs
         }
     }
-    
+
+
+
+    /**
+     *
+     *
+     */
     implicit object CassandraP extends Joiner[CassandraProcess] {
       override def join[A, B, C](outer: CassandraProcess#Stream[A])(relation: A ⇒ CassandraProcess#Stream[B])(mapper: (A, B) ⇒ C)
-                                (implicit ctx: CassandraProcess#Context): CassandraProcess#Stream[C] = {
+                                (implicit ctx: CassandraProcess#Context): CassandraProcess#Stream[C] =
         for { id ← outer; rs ← relation(id) |> scalaz.stream.process1.lift(mapper(id, _)) } yield rs
-      }
     }
 
+    /**
+     *
+     *
+     */
     implicit object CassandraO extends Joiner[CassandraObservable] {
       override def join[A, B, C](outer: CassandraObservable#Stream[A])(relation: (A) ⇒ CassandraObservable#Stream[B])(mapper: (A, B) ⇒ C)
                                 (implicit ctx: CassandraObservable#Context): CassandraObservable#Stream[C] =
         for { id ← outer; rs ← relation(id).map(mapper(id, _))  } yield rs
     }
+
+    implicit object CassandraOCursorError extends Joiner[CassandraObsCursorError] {
+      override def join[A, B, C](outer: CassandraObsCursorError#Stream[A])(relation: (A) => CassandraObsCursorError#Stream[B])
+                                (mapper: (A, B) => C)
+                                (implicit ctx: CassandraObsCursorError#Context): CassandraObsCursorError#Stream[C] =
+        for {id ← outer; rs ← relation(id).map(mapper(id, _))} yield {
+          rs
+        }
+    }
+
+    implicit object CassandraOFetchError extends Joiner[CassandraObsFetchError] {
+      override def join[A, B, C](outer: CassandraObsFetchError#Stream[A])(relation: (A) => CassandraObsFetchError#Stream[B])
+                                (mapper: (A, B) => C)
+                                (implicit ctx: CassandraObsFetchError#Context): CassandraObsFetchError#Stream[C] =
+        for {id ← outer; rs ← relation(id).map(mapper(id, _))} yield {
+          rs
+        }
+    }
+
+
+
 
     private type AkkaSource[x] = akka.stream.scaladsl.Source[x, Unit]
 

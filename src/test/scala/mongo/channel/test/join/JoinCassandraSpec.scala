@@ -19,11 +19,11 @@ import scala.collection.mutable
 import scalaz.concurrent.Task
 import rx.lang.scala.Subscriber
 import java.util.function.UnaryOperator
-import java.util.concurrent.CountDownLatch
+import java.util.concurrent.{TimeUnit, CountDownLatch}
 import java.util.concurrent.atomic.{ AtomicLong, AtomicReference }
 
 import org.scalatest.{ Matchers, WordSpecLike }
-import join.cassandra.{ CassandraObservable, CassandraProcess }
+import join.cassandra.{CassandraObsFetchError, CassandraObservable, CassandraProcess, CassandraObsCursorError}
 import com.datastax.driver.core.{ Cluster, ConsistencyLevel, Row ⇒ CRow }
 import mongo.channel.test.cassandra.TemperatureEnviroment
 import rx.lang.scala.schedulers.ExecutionContextScheduler
@@ -34,7 +34,10 @@ class JoinCassandraSpec extends WordSpecLike with Matchers with TemperatureEnvir
   import dsl.cassandra._
 
   val selectSensor = "SELECT sensor FROM {0}"
-  val qSensors = for { q ← select(selectSensor) } yield q
+  val qSensors = for {q ← select(selectSensor)} yield {
+    q
+  }
+  val RxExecutor = ExecutionContextScheduler(ExecutionContext.fromExecutor(executor))
 
   def qTemperature(r: CRow) = for {
     _ ← select("SELECT sensor, event_time, temperature FROM {0} WHERE sensor = ?")
@@ -83,7 +86,6 @@ class JoinCassandraSpec extends WordSpecLike with Matchers with TemperatureEnvir
       val pageSize = 7
       val count = new AtomicLong(0)
       val done = new CountDownLatch(1)
-      val RxExecutor = ExecutionContextScheduler(ExecutionContext.fromExecutor(executor))
 
       implicit val client = Cluster.builder().addContactPointsWithPorts(cassandraHost).build
       val state = new AtomicReference(Vector.empty[String])
@@ -106,6 +108,7 @@ class JoinCassandraSpec extends WordSpecLike with Matchers with TemperatureEnvir
         }
         override def onError(e: Throwable) = {
           logger.info(s"★ ★ ★  CassandraObservable has been completed with error: ${e.getMessage}")
+          client.close()
           done.countDown()
         }
         override def onCompleted() = {
@@ -121,8 +124,81 @@ class JoinCassandraSpec extends WordSpecLike with Matchers with TemperatureEnvir
 
       done.await()
       logger.info("Join with CassandraObservable: " + state.get())
-      if (count.get() != measureSize * sensors.size)
+      if (count.get() != measureSize * sensors.size) {
         fail("Error in Join with CassandraObservable")
+      }
+    }
+  }
+
+
+  "Join with CassandraObservable onError while we try to create a cursor" should {
+    "have error" in {
+      val done = new CountDownLatch(1)
+      implicit val client = Cluster.builder().addContactPointsWithPorts(cassandraHost).build
+
+      val joinQuery =
+        Join[CassandraObsCursorError].join(qSensors, SENSORS, qTemperature, TEMPERATURE, KEYSPACE)(cmb)
+
+      val S = new Subscriber[String] {
+        override def onStart() = request(1)
+
+        override def onNext(next: String) = request(1)
+
+        override def onError(e: Throwable) = {
+          logger.info(s"★ ★ ★  CassandraObsCursorError has been completed with error: ${e.getMessage}")
+          client.close()
+          done.countDown()
+        }
+
+        override def onCompleted() = {
+          logger.info("★ ★ ★  CassandraObsCursorError has been completed")
+          client.close()
+          done.countDown()
+        }
+      }
+      joinQuery
+        .observeOn(RxExecutor)
+        .subscribe(S)
+
+      if (!done.await(5, TimeUnit.SECONDS)) {
+        fail("Error in Join with CassandraObsCursorError")
+      }
+    }
+  }
+
+
+  "Join with CassandraObsFetchError onError while we trying to fetch records" should {
+    "have error" in {
+      val done = new CountDownLatch(1)
+      implicit val client = Cluster.builder().addContactPointsWithPorts(cassandraHost).build
+
+      val joinQuery =
+        Join[CassandraObsFetchError].join(qSensors, SENSORS, qTemperature, TEMPERATURE, KEYSPACE)(cmb)
+
+      val S = new Subscriber[String] {
+        override def onStart() = request(1)
+
+        override def onNext(next: String) = request(1)
+
+        override def onError(e: Throwable) = {
+          logger.info(s"★ ★ ★  CassandraObsCursorError has been completed with error: ${e.getMessage}")
+          client.close()
+          done.countDown()
+        }
+
+        override def onCompleted() = {
+          logger.info("★ ★ ★  CassandraObsCursorError has been completed")
+          client.close()
+          done.countDown()
+        }
+      }
+      joinQuery
+        .observeOn(RxExecutor)
+        .subscribe(S)
+
+      if (!done.await(5, TimeUnit.SECONDS)) {
+        fail("Error in Join with CassandraObsCursorError")
+      }
     }
   }
 }
