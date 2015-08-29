@@ -144,9 +144,6 @@ package object join {
         }
     }
 
-
-
-
     private type AkkaSource[x] = akka.stream.scaladsl.Source[x, Unit]
 
     private def akkaSequentualSource[A, B, C](outer: AkkaSource[A], relation: (A) => AkkaSource[B], cmb: (A, B) => C,
@@ -178,7 +175,8 @@ package object join {
     /**
      * Nondeterministically sequence `fs`, collecting the results using a commutative `Monoid`
      */
-    private def akkaParallelSource[A, B, C](outer: AkkaSource[A], relation: (A) => AkkaSource[B], cmb: (A, B) => C, parallelism: Int)
+    private def akkaParallelSource[A, B, C](outer: AkkaSource[A], relation: (A) => AkkaSource[B],
+                                            cmb: (A, B) => C, parallelism: Int)
                                            (implicit Mat: akka.stream.ActorMaterializer, S: scalaz.Semigroup[C]): AkkaSource[C] = {
       outer.via(Flow[A].mapAsyncUnordered(parallelism) { ids =>
         relation(ids).map(b => cmb(ids, b)).runFold(List[C]())(_ :+ _)
@@ -188,7 +186,8 @@ package object join {
     /**
      *
      */
-    private def akkaParallelSource2[A, B, C](outer: AkkaSource[A], relation: (A) => AkkaSource[B], cmb: (A, B) => C, parallelism: Int)
+    private def akkaParallelSource2[A, B, C](outer: AkkaSource[A], relation: (A) => AkkaSource[B],
+                                             cmb: (A, B) => C, parallelism: Int)
                                             (implicit Mat: akka.stream.ActorMaterializer, S: scalaz.Semigroup[C]): AkkaSource[C] =
       outer.grouped(parallelism).map { ids =>
         Source() { implicit b =>
@@ -198,7 +197,7 @@ package object join {
           innerSource.foreach(_ ~> merge)
           merge.out
         }
-      }.flatten(FlattenStrategy.concat[C])
+      }.flatten(akka.stream.scaladsl.FlattenStrategy.concat[C])
 
     case class AkkaConcurrentAttributes(setting: akka.stream.ActorMaterializerSettings,
                                         system: akka.actor.ActorSystem,
