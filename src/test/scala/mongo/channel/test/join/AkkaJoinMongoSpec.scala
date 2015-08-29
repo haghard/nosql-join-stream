@@ -117,5 +117,7 @@ class AkkaJoinMongoSpec extends TestKit(ActorSystem("akka-join-stream")) with Wo
     latch.await(5, TimeUnit.SECONDS) mustBe true
     logger.info("Par: " + resRef.get)
     resRef.get.size mustBe PkLimit
+    //for akkaParallelSource2
+    //resRef.get.size mustBe MongoIntegrationEnv.programmersSize
   }
 }

@@ -130,7 +130,6 @@ class JoinCassandraSpec extends WordSpecLike with Matchers with TemperatureEnvir
     }
   }
 
-
   "Join with CassandraObservable onError while we try to create a cursor" should {
     "have error" in {
       val done = new CountDownLatch(1)
@@ -165,7 +164,6 @@ class JoinCassandraSpec extends WordSpecLike with Matchers with TemperatureEnvir
       }
     }
   }
-
 
   "Join with CassandraObsFetchError onError while we trying to fetch records" should {
     "have error" in {

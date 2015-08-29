@@ -175,17 +175,35 @@ package object join {
       }
     }
 
+    /**
+     * Nondeterministically sequence `fs`, collecting the results using a commutative `Monoid`
+     */
     private def akkaParallelSource[A, B, C](outer: AkkaSource[A], relation: (A) => AkkaSource[B], cmb: (A, B) => C, parallelism: Int)
-                                           (implicit Mat: akka.stream.ActorMaterializer, S: scalaz.Semigroup[C] /*scalaz.Monoid[C]*/): AkkaSource[C] = {
+                                           (implicit Mat: akka.stream.ActorMaterializer, S: scalaz.Semigroup[C]): AkkaSource[C] = {
       outer.via(Flow[A].mapAsyncUnordered(parallelism) { ids =>
         relation(ids).map(b => cmb(ids, b)).runFold(List[C]())(_ :+ _)
       }).conflate(_.reduce(S.append(_, _)))((line, list) => S.append(line, list.reduce(S.append(_, _))))
     }
 
+    /**
+     *
+     */
+    private def akkaParallelSource2[A, B, C](outer: AkkaSource[A], relation: (A) => AkkaSource[B], cmb: (A, B) => C, parallelism: Int)
+                                            (implicit Mat: akka.stream.ActorMaterializer, S: scalaz.Semigroup[C]): AkkaSource[C] =
+      outer.grouped(parallelism).map { ids =>
+        Source() { implicit b =>
+          import FlowGraph.Implicits._
+          val innerSource = ids.map(in => relation(in).map(outer => cmb(in, outer)))
+          val merge = b.add(Merge[C](ids.size))
+          innerSource.foreach(_ ~> merge)
+          merge.out
+        }
+      }.flatten(FlattenStrategy.concat[C])
+
     case class AkkaConcurrentAttributes(setting: akka.stream.ActorMaterializerSettings,
                                         system: akka.actor.ActorSystem,
                                         parallelism: Int,
-                                        S: scalaz.Semigroup[T] forSome {type T} /*scalaz.Monoid[T] forSome { type T }*/)
+                                        S: scalaz.Semigroup[T] forSome {type T})
 
     def apply[T <: StorageModule: Joiner: Storage]: Joiner[T] = implicitly[Joiner[T]]
   }
