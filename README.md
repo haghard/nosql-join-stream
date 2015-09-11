@@ -13,6 +13,15 @@ Goals:
 
 The main idea for "Abstract algebraic data type" pattern was taken from this [blog post](http://io.pellucid.com/blog/abstract-algebraic-data-type)
 
+
+Where to get it
+=================
+resolvers += "haghard-bintray"  at "http://dl.bintray.com/haghard/releases"
+
+libraryDependencies +=  "com.haghard"  %% "nosql-join-stream" % "0.0.1"
+
+
+
 Example for cassandra
 ===============================
 from mongo.channel.test.join.JoinCassandraSpec
