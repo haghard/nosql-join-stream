@@ -51,15 +51,15 @@ with MustMatchers with BeforeAndAfterEach with BeforeAndAfterAll {
       implicit val Attributes = \/-(AkkaConcurrentAttributes(settings, system, 4, scalaz.Semigroup[String]))
 
       implicit val client = Cluster.builder()
-        .addContactPointsWithPorts(List(new InetSocketAddress("192.168.0.171", 9142)).asJava).build
+        .addContactPointsWithPorts(List(new InetSocketAddress("192.168.0.171", 9042)).asJava).build
 
-      val qNames = for {q ← select("SELECT domain FROM {0}")} yield {
+      val qNames = for {q ← select("SELECT processor_id FROM {0}")} yield {
         q
       }
 
       def qDomain(r: CRow) = for {
-        _ ← select("select processor_id, sequence_nr from {0} where processor_id = ? and partition_nr in (0,1)")
-        _ ← fk[java.lang.Long]("processor_id", r.getLong("processor_id"))
+        _ ← select("select processor_id, sequence_nr from {0} where processor_id = ? and sequence_nr > 100 and partition_nr in (0,1)")
+        _ ← fk[java.lang.String]("processor_id", r.getString("processor_id"))
         q ← readConsistency(ConsistencyLevel.QUORUM)
       } yield {
           q
@@ -67,7 +67,7 @@ with MustMatchers with BeforeAndAfterEach with BeforeAndAfterAll {
 
       def cmb0: (CassandraAkkaStream#Record, CassandraAkkaStream#Record) ⇒ String =
         (outer, inner) ⇒
-          s"Name №${outer.getLong("processor_id")} - ${inner.getLong("sequence_nr")} "
+          s"Actor ${outer.getString("processor_id")} - ${inner.getLong("sequence_nr")} "
 
       val parSource = Join[CassandraAkkaStream].join(qNames, "names", qDomain, "sport_center_journal", "sport_center")(cmb0)
 
@@ -79,12 +79,14 @@ with MustMatchers with BeforeAndAfterEach with BeforeAndAfterAll {
           resRef.set(r)
           latch.countDown()
         case Failure(ex) ⇒
-          fail("★ ★ ★ CassandraAkkaStream par has been competed with error::" + ex.getMessage)
+          fail("★ ★ ★ CassandraAkkaStream par has been competed with error:" + ex.getMessage)
           latch.countDown()
       }
       latch.await
-      println(s"Size ${resRef.get().size}")
-      1 === 1
+      client.close()
+
+      println(resRef.get())
+      resRef.get().size === 28
     }
   }
 }
