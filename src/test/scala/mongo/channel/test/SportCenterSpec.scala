@@ -15,7 +15,7 @@
 package mongo.channel.test
 
 import java.net.InetSocketAddress
-import java.util.concurrent.{Executors, CountDownLatch}
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicReference
 
 import _root_.join.Join
@@ -31,12 +31,14 @@ import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach, MustMatchers, WordS
 import scala.util.{Failure, Success}
 import scalaz.\/-
 
-class SportCenterSpec extends TestKit(ActorSystem("akka-join-stream")) with WordSpecLike
-with MustMatchers with BeforeAndAfterEach with BeforeAndAfterAll {
+class SportCenterSpec extends TestKit(ActorSystem("akka-join-stream")) with WordSpecLike with MustMatchers
+with BeforeAndAfterEach with BeforeAndAfterAll {
 
   implicit val dispatcher = system.dispatchers.lookup("akka.join-dispatcher")
 
   def fold = { (acc: List[String], cur: String) ⇒ acc :+ cur }
+
+  val idField = "persistence_id"
 
   "CassandraJoinPar with sportCenter db" should {
     "perform parallel join" in {
@@ -53,13 +55,13 @@ with MustMatchers with BeforeAndAfterEach with BeforeAndAfterAll {
       implicit val client = Cluster.builder()
         .addContactPointsWithPorts(List(new InetSocketAddress("192.168.0.171", 9042)).asJava).build
 
-      val qNames = for {q ← select("SELECT processor_id FROM {0}")} yield {
+      val qNames = for {q ← select(s"SELECT $idField FROM {0}")} yield {
         q
       }
 
       def qDomain(r: CRow) = for {
-        _ ← select("select processor_id, sequence_nr from {0} where processor_id = ? and sequence_nr > 100 and partition_nr in (0,1)")
-        _ ← fk[java.lang.String]("processor_id", r.getString("processor_id"))
+        _ ← select(s"select $idField, sequence_nr from {0} where $idField = ? and sequence_nr > 100 and partition_nr in (0,1)")
+        _ ← fk[java.lang.String](idField, r.getString(idField))
         q ← readConsistency(ConsistencyLevel.QUORUM)
       } yield {
           q
@@ -67,9 +69,9 @@ with MustMatchers with BeforeAndAfterEach with BeforeAndAfterAll {
 
       def cmb0: (CassandraAkkaStream#Record, CassandraAkkaStream#Record) ⇒ String =
         (outer, inner) ⇒
-          s"Actor ${outer.getString("processor_id")} - ${inner.getLong("sequence_nr")} "
+          s"Actor ${outer.getString(idField)} - ${inner.getLong("sequence_nr")} "
 
-      val parSource = Join[CassandraAkkaStream].join(qNames, "names", qDomain, "sport_center_journal", "sport_center")(cmb0)
+      val parSource = Join[CassandraAkkaStream].join(qNames, "metadata", qDomain, "sport_center_journal", "sport_center")(cmb0)
 
       val future = parSource
         .runWith(Sink.fold(List.empty[String])(fold))(ActorMaterializer(settings)(system))
