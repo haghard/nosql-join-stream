@@ -104,7 +104,7 @@ class AkkaJoinCassandraSpec extends TestKit(ActorSystem("akka-join-stream")) wit
           resRef.set(r)
           latch.countDown()
         case Failure(ex) ⇒
-          fail("★ ★ ★ CassandraAkkaStream par has been competed with error::" + ex.getMessage)
+          fail("★ ★ ★ CassandraAkkaStream par has been competed with error:" + ex.getMessage)
           latch.countDown()
       }
       latch.await

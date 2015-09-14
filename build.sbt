@@ -35,7 +35,7 @@ enablePlugins(GitVersioning)
 
 val MongoDriverVersion = "3.0.2"
 val CassandraDriverVersion = "2.1.7"
-val ScalazStreamVersion = "0.7.2a"
+val ScalazStreamVersion = "0.7.3a"
 val RxScala = "0.25.0"
 val AkkaStreams = "1.0"
 val Akka = "2.4.0-RC2"
