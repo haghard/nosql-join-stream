@@ -14,6 +14,7 @@
 
 import akka.stream.scaladsl._
 
+import scala.annotation.implicitNotFound
 
 /**
  *
@@ -66,13 +67,13 @@ package object join {
     }
   }
 
+  @implicitNotFound(msg = "Cannot find Joiner type class for ${T}")
   trait Joiner[T <: StorageModule] {
     def join[A, B, C](outer: T#Stream[A])(relation: A ⇒ T#Stream[B])(mapper: (A, B) ⇒ C)
                      (implicit ctx: T#Context): T#Stream[C]
   }
 
   object Joiner {
-
     import join.mongo.{MongoObservable, MongoProcess, MongoAkkaStream, MongoObsCursorError, MongoObsFetchError}
     import join.cassandra.{CassandraObservable, CassandraProcess, CassandraAkkaStream, CassandraObsFetchError, CassandraObsCursorError}
 

@@ -14,6 +14,8 @@
 
 package mongo.channel.test
 
+/*
+
 import java.net.InetSocketAddress
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicReference
@@ -22,23 +24,25 @@ import _root_.join.Join
 import _root_.join.Joiner.AkkaConcurrentAttributes
 import _root_.join.cassandra.CassandraAkkaStream
 import akka.actor.ActorSystem
-import akka.stream.{ActorMaterializer, ActorMaterializerSettings}
+import akka.stream.{ ActorMaterializer, ActorMaterializerSettings }
 import akka.stream.scaladsl.Sink
 import akka.testkit.TestKit
-import com.datastax.driver.core.{Cluster, ConsistencyLevel, Row ⇒ CRow}
-import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach, MustMatchers, WordSpecLike}
+import com.datastax.driver.core.{ Cluster, ConsistencyLevel, Row ⇒ CRow }
+import org.scalatest.{ BeforeAndAfterAll, BeforeAndAfterEach, MustMatchers, WordSpecLike }
 
-import scala.util.{Failure, Success}
+import scala.util.{ Failure, Success }
 import scalaz.\/-
 
 class SportCenterSpec extends TestKit(ActorSystem("akka-join-stream")) with WordSpecLike with MustMatchers
-with BeforeAndAfterEach with BeforeAndAfterAll {
+    with BeforeAndAfterEach with BeforeAndAfterAll {
 
   implicit val dispatcher = system.dispatchers.lookup("akka.join-dispatcher")
 
   def fold = { (acc: List[String], cur: String) ⇒ acc :+ cur }
 
   val idField = "persistence_id"
+  val cassandraHost = "192.168.0.171"
+  val cassandraPort = 9042
 
   "CassandraJoinPar with sportCenter db" should {
     "perform parallel join" in {
@@ -53,9 +57,9 @@ with BeforeAndAfterEach with BeforeAndAfterAll {
       implicit val Attributes = \/-(AkkaConcurrentAttributes(settings, system, 4, scalaz.Semigroup[String]))
 
       implicit val client = Cluster.builder()
-        .addContactPointsWithPorts(List(new InetSocketAddress("192.168.0.171", 9042)).asJava).build
+        .addContactPointsWithPorts(List(new InetSocketAddress(cassandraHost, cassandraPort)).asJava).build
 
-      val qNames = for {q ← select(s"SELECT $idField FROM {0}")} yield {
+      val qNames = for { q ← select(s"SELECT $idField FROM {0}") } yield {
         q
       }
 
@@ -64,8 +68,8 @@ with BeforeAndAfterEach with BeforeAndAfterAll {
         _ ← fk[java.lang.String](idField, r.getString(idField))
         q ← readConsistency(ConsistencyLevel.QUORUM)
       } yield {
-          q
-        }
+        q
+      }
 
       def cmb0: (CassandraAkkaStream#Record, CassandraAkkaStream#Record) ⇒ String =
         (outer, inner) ⇒
@@ -91,4 +95,4 @@ with BeforeAndAfterEach with BeforeAndAfterAll {
       resRef.get().size === 28
     }
   }
-}
+}*/

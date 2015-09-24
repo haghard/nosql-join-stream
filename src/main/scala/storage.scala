@@ -27,7 +27,7 @@ import com.mongodb.MongoException
 import com.datastax.driver.core.Cluster
 import rx.lang.scala.schedulers.ExecutionContextScheduler
 import rx.lang.scala.{ Subscriber, Observable }
-import scala.annotation.tailrec
+import scala.annotation.{implicitNotFound, tailrec}
 import scala.concurrent.ExecutionContext
 import scala.util.{Success, Failure, Try}
 import scalaz.concurrent.Task
@@ -307,6 +307,7 @@ package object storage {
       CassandraIterator(settings, client, resource, collection, logger)
   }
 
+  @implicitNotFound(msg = "Cannot find Storage type class for ${T}")
   sealed trait Storage[T <: StorageModule] {
     def outer(q: QFree[T#QueryAttributes], collection: String, resource: String,
               log: Logger, ctx: T#Context): T#Client ⇒ T#Stream[T#Record]
