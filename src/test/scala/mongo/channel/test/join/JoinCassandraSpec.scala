@@ -68,11 +68,11 @@ class JoinCassandraSpec extends WordSpecLike with Matchers with TemperatureEnvir
       } yield ())
         .onFailure { ex ⇒ logger.debug(s"CassandraProcess has been completed with error: ${ex.getMessage}"); P.halt }
         .onComplete {
-        P.eval_(Task.delay {
-          client.close();
-          logger.info("★ ★ ★  CassandraProcess has been completed")
-        })
-      }
+          P.eval_(Task.delay {
+            client.close();
+            logger.info("★ ★ ★  CassandraProcess has been completed")
+          })
+        }
         .runLog.run
 
       logger.info("Join with CassandraProcess: " + buffer.size)

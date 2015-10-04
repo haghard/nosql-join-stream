@@ -105,8 +105,6 @@ package object join {
         }
     }
 
-
-
     /**
      *
      *

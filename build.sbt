@@ -38,7 +38,7 @@ val CassandraDriverVersion = "2.1.7"
 val ScalazStreamVersion = "0.7.3a"
 val RxScala = "0.25.0"
 val AkkaStreams = "1.0"
-val Akka = "2.4.0-RC3"
+val Akka = "2.4.0"
 val localMvnRepo = "/Volumes/Data/dev_build_tools/apache-maven-3.1.1/repository"
 
 scalariformSettings
