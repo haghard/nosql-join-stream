@@ -28,7 +28,7 @@ import akka.stream.{ ActorMaterializerSettings, ActorMaterializer }
 import com.datastax.driver.core.{ Cluster, ConsistencyLevel, Row ⇒ CRow }
 import org.scalatest.{ BeforeAndAfterAll, BeforeAndAfterEach, MustMatchers, WordSpecLike }
 
-import scala.util.{Failure, Success}
+import scala.util.{ Failure, Success }
 import scalaz.{ -\/, \/- }
 
 class AkkaJoinCassandraSpec extends TestKit(ActorSystem("akka-join-stream")) with WordSpecLike

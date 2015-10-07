@@ -53,6 +53,9 @@ trait MongoClientEnviromentLifecycle[T] extends org.specs2.mutable.After {
   }
 }
 
+/**
+ * This looks like a specs2 exception after update on scalaz-stream-0.8
+ */
 class IntegrationMongoClientSpec extends Specification {
 
   "Hit server with invalid query" in new MongoClientEnviromentLifecycle[Int] {
@@ -107,7 +110,7 @@ class IntegrationMongoClientSpec extends Specification {
       .onComplete(eval(Task.delay(isFailureComplete.set(true))))
       .runLog.run
 
-    isFailureInvoked.get && isFailureComplete.get must be equalTo true
+    isFailureInvoked.get && isFailureComplete.get === true
   }
 
   "Hit server with invalid query - missing db" in new MongoClientEnviromentLifecycle[Int] {

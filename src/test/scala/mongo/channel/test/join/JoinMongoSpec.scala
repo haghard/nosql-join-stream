@@ -14,7 +14,7 @@
 
 package mongo.channel.test.join
 
-import java.util.concurrent.{TimeUnit, CountDownLatch}
+import java.util.concurrent.{ TimeUnit, CountDownLatch }
 import java.util.concurrent.atomic.AtomicLong
 import mongo.channel.test.{ MongoDbEnviroment, MongoIntegrationEnv }
 import org.scalatest.concurrent.ScalaFutures
@@ -28,16 +28,19 @@ import scalaz.concurrent.Task
 import scalaz.stream.Process._
 import scalaz.stream.io
 
+/**
+ * This looks like a specs2 exception after update on scalaz-stream-0.8
+ */
 class JoinMongoSpec extends Specification with ScalaFutures {
   import MongoIntegrationEnv._
   import join.Join
   import mongo._
   import dsl.mongo._
-  import join.mongo.{MongoProcess, MongoObservable, MongoObsCursorError, MongoObsFetchError}
+  import join.mongo.{ MongoProcess, MongoObservable, MongoObsCursorError, MongoObsFetchError }
 
   val pageSize = 7
 
-  val qLang = for {q ← "index" $gte 0 $lte 5} yield {
+  val qLang = for { q ← "index" $gte 0 $lte 5 } yield {
     q
   }
 
@@ -49,10 +52,7 @@ class JoinMongoSpec extends Specification with ScalaFutures {
 
     type Module = MongoProcess
 
-    def qProg(outer: Module#Record) =
-      for {q ← "lang" $eq outer.get("index").asInstanceOf[Int]} yield {
-        q
-      }
+    def qProg(outer: Module#Record) = for { q ← "lang" $eq outer.get("index").asInstanceOf[Int] } yield q
 
     val cmd: (Module#Record, Module#Record) ⇒ String =
       (outer, inner) ⇒
@@ -79,11 +79,9 @@ class JoinMongoSpec extends Specification with ScalaFutures {
     type Module = MongoObservable
 
     def qProg(outer: Module#Record) =
-      for {q ← "lang" $eq outer.get("index").asInstanceOf[Int]} yield {
-        q
-      }
+      for { q ← "lang" $eq outer.get("index").asInstanceOf[Int] } yield q
 
-    val cmd: (Module#Record, Module#Record) ⇒ String =
+    val cmb: (Module#Record, Module#Record) ⇒ String =
       (outer, inner) ⇒
         s"PK:${outer.get("index")} - [FK:${inner.get("lang")} - ${inner.get("name")}]"
 
@@ -91,7 +89,7 @@ class JoinMongoSpec extends Specification with ScalaFutures {
     val res = responses
     implicit val c = client
 
-    val query = Join[Module].join(qLang, LANGS, qProg(_), PROGRAMMERS, TEST_DB)(cmd)
+    val query = Join[Module].join(qLang, LANGS, qProg(_), PROGRAMMERS, TEST_DB)(cmb)
 
     val S = new Subscriber[String] {
       override def onStart() = request(pageSize)
@@ -124,12 +122,10 @@ class JoinMongoSpec extends Specification with ScalaFutures {
     initMongo
     type Module = MongoObsCursorError
 
-    val qLang = for {q ← "index" $gte 0 $lte 5} yield {
-      q
-    }
+    val qLang = for { q ← "index" $gte 0 $lte 5 } yield q
 
     def qProg(outer: Module#Record) =
-      for {q ← "lang" $eq outer.get("index").asInstanceOf[Int]} yield {
+      for { q ← "lang" $eq outer.get("index").asInstanceOf[Int] } yield {
         q
       }
 
@@ -173,14 +169,9 @@ class JoinMongoSpec extends Specification with ScalaFutures {
     initMongo
     type Module = MongoObsFetchError
 
-    val qLang = for {q ← "index" $gte 0 $lte 5} yield {
-      q
-    }
+    val qLang = for { q ← "index" $gte 0 $lte 5 } yield q
 
-    def qProg(outer: Module#Record) =
-      for {q ← "lang" $eq outer.get("index").asInstanceOf[Int]} yield {
-        q
-      }
+    def qProg(outer: Module#Record) = for { q ← "lang" $eq outer.get("index").asInstanceOf[Int] } yield q
 
     val cmd: (Module#Record, Module#Record) ⇒ String =
       (outer, inner) ⇒

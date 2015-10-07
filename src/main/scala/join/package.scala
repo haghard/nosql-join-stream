@@ -51,7 +51,7 @@ package object join {
    * This is done for compiler to find all implicit instance. Let's call them ``internal dependencies`` for our domain.
    * They define internal structure of the library
    *
-   * Also we ask for [[DBModule#Context]] and [[DBModule#Client]]. They are our external dependencies
+   * Also we ask for [[DBModule#Context]] and [[DBModule#Client]]. They are ours external dependencies
    *
    */
   case class Join[DBModule <: StorageModule : Joiner : Storage](implicit ctx: DBModule#Context, client: DBModule#Client, t: ClassTag[DBModule]) {
@@ -172,7 +172,7 @@ package object join {
     }
 
     /**
-     * Nondeterministically sequence `fs`, collecting the results using a commutative `Monoid`
+     * Nondeterministically sequence `fs`, collecting the results with `Semigroup`
      */
     private def akkaParallelSource[A, B, C](outer: AkkaSource[A], relation: (A) => AkkaSource[B],
                                             cmb: (A, B) => C, parallelism: Int)

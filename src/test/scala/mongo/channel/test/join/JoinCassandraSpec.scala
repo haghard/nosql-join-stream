@@ -19,11 +19,11 @@ import scala.collection.mutable
 import scalaz.concurrent.Task
 import rx.lang.scala.Subscriber
 import java.util.function.UnaryOperator
-import java.util.concurrent.{TimeUnit, CountDownLatch}
+import java.util.concurrent.{ TimeUnit, CountDownLatch }
 import java.util.concurrent.atomic.{ AtomicLong, AtomicReference }
 
 import org.scalatest.{ Matchers, WordSpecLike }
-import join.cassandra.{CassandraObsFetchError, CassandraObservable, CassandraProcess, CassandraObsCursorError}
+import join.cassandra.{ CassandraObsFetchError, CassandraObservable, CassandraProcess, CassandraObsCursorError }
 import com.datastax.driver.core.{ Cluster, ConsistencyLevel, Row ⇒ CRow }
 import mongo.channel.test.cassandra.TemperatureEnviroment
 import rx.lang.scala.schedulers.ExecutionContextScheduler
@@ -34,7 +34,7 @@ class JoinCassandraSpec extends WordSpecLike with Matchers with TemperatureEnvir
   import dsl.cassandra._
 
   val selectSensor = "SELECT sensor FROM {0}"
-  val qSensors = for {q ← select(selectSensor)} yield {
+  val qSensors = for { q ← select(selectSensor) } yield {
     q
   }
   val RxExecutor = ExecutionContextScheduler(ExecutionContext.fromExecutor(executor))
@@ -44,8 +44,8 @@ class JoinCassandraSpec extends WordSpecLike with Matchers with TemperatureEnvir
     _ ← fk[java.lang.Long]("sensor", r.getLong("sensor"))
     q ← readConsistency(ConsistencyLevel.ONE)
   } yield {
-      q
-    }
+    q
+  }
 
   def cmb: (CassandraObservable#Record, CassandraObservable#Record) ⇒ String =
     (outer, inner) ⇒

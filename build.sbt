@@ -27,7 +27,7 @@ scalacOptions ++= Seq(
   "-language:postfixOps",
   "-language:reflectiveCalls",
   "-Yno-adapted-args",
-  "-target:jvm-1.7"
+  "-target:jvm-1.8"
 )
 
 useJGit
@@ -35,7 +35,7 @@ enablePlugins(GitVersioning)
 
 val MongoDriverVersion = "3.0.2"
 val CassandraDriverVersion = "2.1.7"
-val ScalazStreamVersion = "0.7.3a"
+val ScalazStreamVersion = "0.8"
 val RxScala = "0.25.0"
 val AkkaStreams = "1.0"
 val Akka = "2.4.0"
@@ -60,21 +60,22 @@ libraryDependencies ++= Seq(
     "com.datastax.cassandra" %   "cassandra-driver-core"    %   CassandraDriverVersion withSources(),
     "org.scalaz.stream"      %%  "scalaz-stream"            %   ScalazStreamVersion    withSources(),
     "io.reactivex"           %%  "rxscala"                  %   RxScala                withSources(),
-  "com.typesafe.akka" %% "akka-stream-experimental" % AkkaStreams withSources(),
+    "com.typesafe.akka"      %%  "akka-stream-experimental" %   AkkaStreams            withSources(),
     "log4j"                  %   "log4j"                    %   "1.2.14"
 )
 
 libraryDependencies ++= Seq(
-  "de.bwaldvogel"     %   "mongo-java-server" %   "1.4.1"   % "test" withSources(),
+  "de.bwaldvogel"     %   "mongo-java-server" %   "1.4.4"   % "test" withSources(),
   "org.cassandraunit" %   "cassandra-unit"    %   "2.0.2.2" % "test",
-  "org.specs2"        %%  "specs2-core"       %   "3.2"     % "test" withSources(),
-  "org.scalatest"     %%  "scalatest"         %   "2.1.4"   % "test",
+  //"org.specs2"        %%  "specs2-core"       %   "3.3.1"   % "test"
+  "org.specs2"        %%  "specs2-core"       %   "3.6.4"   % "test" withSources(),
+  "org.scalatest"     %%  "scalatest"         %   "2.2.4"   % "test",
   "com.typesafe.akka" %% "akka-testkit" % Akka % "test"
 )
 
 scalacOptions ++= Seq(
   "-encoding", "UTF-8",
-  "-target:jvm-1.7",
+  "-target:jvm-1.8",
   "-deprecation",
   "-unchecked",
   "-Ywarn-dead-code",
@@ -84,8 +85,8 @@ scalacOptions ++= Seq(
   "-language:existentials")
 
 javacOptions ++= Seq(
-  "-source", "1.7",
-  "-target", "1.7",
+  "-source", "1.8",
+  "-target", "1.8",
   "-Xlint:unchecked",
   "-Xlint:deprecation")
 

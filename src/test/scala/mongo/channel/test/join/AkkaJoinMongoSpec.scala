@@ -14,7 +14,7 @@
 
 package mongo.channel.test.join
 
-import java.util.concurrent.{TimeUnit, CountDownLatch}
+import java.util.concurrent.{ TimeUnit, CountDownLatch }
 import java.util.concurrent.atomic.AtomicReference
 
 import join.Joiner.AkkaConcurrentAttributes
@@ -27,12 +27,12 @@ import akka.actor.ActorSystem
 import org.apache.log4j.Logger
 import join.mongo.MongoAkkaStream
 import mongo.channel.test.MongoIntegrationEnv._
-import akka.stream.{Supervision, ActorMaterializerSettings, ActorMaterializer}
+import akka.stream.{ Supervision, ActorMaterializerSettings, ActorMaterializer }
 import mongo.channel.test.{ MongoIntegrationEnv, MongoDbEnviroment }
 import org.scalatest.{ BeforeAndAfterAll, BeforeAndAfterEach, MustMatchers, WordSpecLike }
 
 import akka.stream.scaladsl.Sink
-import scala.util.{Failure, Success}
+import scala.util.{ Failure, Success }
 import scalaz.{ -\/, \/- }
 
 class AkkaJoinMongoSpec extends TestKit(ActorSystem("akka-join-stream")) with WordSpecLike

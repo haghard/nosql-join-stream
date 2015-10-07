@@ -19,7 +19,7 @@ import java.util.Date
 import java.util.concurrent.{ ExecutorService, Executors, ThreadLocalRandom, TimeUnit }
 
 import _root_.mongo.channel.{ DBChannel, DBChannelFactory, QuerySetting }
-import _root_.mongo.{ NamedThreadFactory, channel }
+import _root_.mongo.NamedThreadFactory
 import com.mongodb._
 import de.bwaldvogel.mongo.MongoServer
 import de.bwaldvogel.mongo.backend.memory.MemoryBackend
