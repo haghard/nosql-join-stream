@@ -6,7 +6,7 @@ organization := "com.haghard"
 
 name := "nosql-join-stream"
 
-version := "0.0.1-snapshot"
+version := "0.0.2"
 
 scalaVersion := "2.11.7"
 
@@ -67,10 +67,12 @@ libraryDependencies ++= Seq(
     "org.apache.logging.log4j"%   "log4j-core"              %   Log4J2
 )
 
+
+//JoinMongoSpec failed with specs2-core 3.6.4
 libraryDependencies ++= Seq(
   "de.bwaldvogel"     %   "mongo-java-server" %   "1.4.4"   % "test" withSources(),
   "org.cassandraunit" %   "cassandra-unit"    %   "2.0.2.2" % "test",
-  "org.specs2"        %%  "specs2-core"       %   "3.6.4"   % "test" withSources(),
+  "org.specs2"        %%  "specs2-core"       %   "2.4.17"  % "test" withSources(),
   "org.scalatest"     %%  "scalatest"         %   "2.2.5"   % "test",
   "com.typesafe.akka" %%  "akka-testkit" % Akka % "test"
 )
@@ -98,7 +100,7 @@ licenses += ("Apache-2.0", url("http://www.apache.org/licenses/"))
 
 bintrayOrganization in bintray := Some("haghard")
 
-repository in bintray := "snapshots" //"releases"
+repository in bintray := "releases" //"snapshots"
 
 publishMavenStyle := true
 //publishTo := Some(Resolver.file("file",  new File(localMvnRepo)))

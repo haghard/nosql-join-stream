@@ -28,9 +28,6 @@ import scalaz.concurrent.Task
 import scalaz.stream.Process._
 import scalaz.stream.io
 
-/**
- * This looks like a specs2 exception after update on scalaz-stream-0.8
- */
 class JoinMongoSpec extends Specification with ScalaFutures {
   import MongoIntegrationEnv._
   import join.Join
