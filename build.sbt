@@ -39,6 +39,8 @@ val ScalazStreamVersion = "0.8"
 val RxScala = "0.25.0"
 val AkkaStreams = "1.0"
 val Akka = "2.4.0"
+val Log4J2 = "2.4"
+
 val localMvnRepo = "/Volumes/Data/dev_build_tools/apache-maven-3.1.1/repository"
 
 scalariformSettings
@@ -61,16 +63,16 @@ libraryDependencies ++= Seq(
     "org.scalaz.stream"      %%  "scalaz-stream"            %   ScalazStreamVersion    withSources(),
     "io.reactivex"           %%  "rxscala"                  %   RxScala                withSources(),
     "com.typesafe.akka"      %%  "akka-stream-experimental" %   AkkaStreams            withSources(),
-    "log4j"                  %   "log4j"                    %   "1.2.14"
+    "org.apache.logging.log4j"%   "log4j-api"               %   Log4J2,
+    "org.apache.logging.log4j"%   "log4j-core"              %   Log4J2
 )
 
 libraryDependencies ++= Seq(
   "de.bwaldvogel"     %   "mongo-java-server" %   "1.4.4"   % "test" withSources(),
   "org.cassandraunit" %   "cassandra-unit"    %   "2.0.2.2" % "test",
-  //"org.specs2"        %%  "specs2-core"       %   "3.3.1"   % "test"
   "org.specs2"        %%  "specs2-core"       %   "3.6.4"   % "test" withSources(),
-  "org.scalatest"     %%  "scalatest"         %   "2.2.4"   % "test",
-  "com.typesafe.akka" %% "akka-testkit" % Akka % "test"
+  "org.scalatest"     %%  "scalatest"         %   "2.2.5"   % "test",
+  "com.typesafe.akka" %%  "akka-testkit" % Akka % "test"
 )
 
 scalacOptions ++= Seq(

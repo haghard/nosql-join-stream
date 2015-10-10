@@ -22,7 +22,7 @@ import join.StorageModule
 import join.cassandra._
 import join.mongo._
 import mongo.channel.DBChannel
-import org.apache.log4j.Logger
+import org.apache.logging.log4j.Logger
 import com.mongodb.MongoException
 import com.datastax.driver.core.Cluster
 import rx.lang.scala.schedulers.ExecutionContextScheduler

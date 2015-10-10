@@ -16,8 +16,6 @@ package mongo
 
 import java.util.concurrent.{ ExecutorService, TimeUnit }
 import com.mongodb.{ DBObject, MongoClient, MongoException }
-
-import org.apache.log4j.Logger
 import scala.util.{ Failure, Success, Try }
 import scalaz.Scalaz._
 import scalaz.concurrent.{ Strategy, Task }
@@ -247,7 +245,7 @@ package object channel {
       arg.fold({ error ⇒ DBChannel(eval(Task.fail(new MongoException(error)))) }, { setting ⇒
         DBChannel(eval(Task.now { client: MongoClient ⇒
           Task {
-            val logger = Logger.getLogger("mongo-streamer")
+            val logger = org.apache.logging.log4j.LogManager.getLogger("mongo-streamer")
             scalaz.stream.io.resource(
               Task delay {
                 val collection = client.getDB(setting.db).getCollection(setting.cName)

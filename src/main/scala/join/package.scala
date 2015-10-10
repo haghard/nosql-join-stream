@@ -55,7 +55,7 @@ package object join {
    *
    */
   case class Join[DBModule <: StorageModule : Joiner : Storage](implicit ctx: DBModule#Context, client: DBModule#Client, t: ClassTag[DBModule]) {
-    implicit val logger = org.apache.log4j.Logger.getLogger(s"${t.runtimeClass.getName.dropWhile(_ != '$').drop(1)}-producer-join")
+    implicit val logger = org.apache.logging.log4j.LogManager.getLogger(s"${t.runtimeClass.getName.dropWhile(_ != '$').drop(1)}-producer-join")
 
     def join[A](outerQ: QFree[DBModule#QueryAttributes], outerColl: String,
                 innerQ: DBModule#Record ⇒ QFree[DBModule#QueryAttributes], innerColl: String, resource: String)
