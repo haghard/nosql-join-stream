@@ -102,9 +102,7 @@ package object join {
     implicit object MongoOFetchError extends Joiner[MongoObsFetchError] {
       override def join[A, B, C](outer: MongoObsFetchError#Stream[A])(relation: A ⇒ MongoObsFetchError#Stream[B])(mapper: (A, B) ⇒ C)
                                 (implicit ctx: MongoObsFetchError#Context): MongoObsFetchError#Stream[C] =
-        for {id ← outer; rs ← relation(id).map(mapper(id, _))} yield {
-          rs
-        }
+        for {id ← outer; rs ← relation(id).map(mapper(id, _))} yield rs
     }
 
     /**
@@ -114,7 +112,7 @@ package object join {
     implicit object CassandraP extends Joiner[CassandraProcess] {
       override def join[A, B, C](outer: CassandraProcess#Stream[A])(relation: A ⇒ CassandraProcess#Stream[B])(mapper: (A, B) ⇒ C)
                                 (implicit ctx: CassandraProcess#Context): CassandraProcess#Stream[C] =
-        for { id ← outer; rs ← relation(id) |> scalaz.stream.process1.lift(mapper(id, _)) } yield rs
+        for { id ← outer; rs ← relation(id).map(mapper(id, _)) } yield rs
     }
 
     /**
@@ -131,9 +129,7 @@ package object join {
       override def join[A, B, C](outer: CassandraObsCursorError#Stream[A])(relation: (A) => CassandraObsCursorError#Stream[B])
                                 (mapper: (A, B) => C)
                                 (implicit ctx: CassandraObsCursorError#Context): CassandraObsCursorError#Stream[C] =
-        for {id ← outer; rs ← relation(id).map(mapper(id, _))} yield {
-          rs
-        }
+        for {id ← outer; rs ← relation(id).map(mapper(id, _))} yield rs
     }
 
     implicit object CassandraOFetchError extends Joiner[CassandraObsFetchError] {
