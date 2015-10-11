@@ -87,9 +87,7 @@ package object join {
     implicit object MongoOCursorError extends Joiner[MongoObsCursorError] {
       override def join[A, B, C](outer: MongoObsCursorError#Stream[A])(relation: A ⇒ MongoObsCursorError#Stream[B])(mapper: (A, B) ⇒ C)
                                 (implicit ctx: MongoObsCursorError#Context): MongoObsCursorError#Stream[C] =
-        for {id ← outer; rs ← relation(id).map(mapper(id, _))} yield {
-          rs
-        }
+        for {id ← outer; rs ← relation(id).map(mapper(id, _))} yield rs
     }
 
     implicit object MongoOFetchError extends Joiner[MongoObsFetchError] {
