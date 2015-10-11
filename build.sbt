@@ -7,7 +7,7 @@ organization := "com.haghard"
 
 name := "nosql-join-stream"
 
-version := "0.0.3"
+version := "0.0.4-snapshot"
 
 scalaVersion := "2.11.7"
 
@@ -40,7 +40,6 @@ val ScalazStreamVersion = "0.8"
 val RxScala = "0.25.0"
 val AkkaStreams = "1.0"
 val Akka = "2.4.0"
-val Log4J2 = "2.4"
 val Logback = "1.1.2"
 
 val localMvnRepo = "/Volumes/Data/dev_build_tools/apache-maven-3.1.1/repository"
@@ -106,7 +105,7 @@ licenses += ("Apache-2.0", url("http://www.apache.org/licenses/"))
 
 bintrayOrganization in bintray := Some("haghard")
 
-repository in bintray := "releases" //"snapshots"
+repository in bintray := "snapshots" //"releases"
 
 publishMavenStyle := true
 //publishTo := Some(Resolver.file("file",  new File(localMvnRepo)))
