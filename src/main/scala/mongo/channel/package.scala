@@ -257,7 +257,7 @@ package object channel {
       arg.fold({ error ⇒ ScalazChannel(eval(Task.fail(new MongoException(error)))) }, { setting ⇒
         ScalazChannel(eval(Task.now { client: MongoClient ⇒
           Task {
-            val logger = org.apache.logging.log4j.LogManager.getLogger("mongo-streamer")
+            val logger = org.slf4j.LoggerFactory.getLogger("mongo-streamer")
             scalaz.stream.io.resource(
               Task delay {
                 val collection = client.getDB(setting.db).getCollection(setting.cName)

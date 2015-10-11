@@ -19,14 +19,13 @@ import java.util.Date
 import mongo.channel.create
 import scalaz.\/
 import scalaz.concurrent.Task
-import org.apache.log4j.Logger
 import scalaz.stream.Process._
 import java.util.concurrent.atomic.AtomicBoolean
 import MongoIntegrationEnv.{ executor, ids, sinkWithBuffer, mongoMock, TEST_DB, PRODUCT, CATEGORY }
 import org.specs2.mutable._
 
 trait MongoClientEnviromentLifecycle[T] extends org.specs2.mutable.After {
-  protected val logger = Logger.getLogger(classOf[IntegrationMongoClientSpec])
+  protected val logger = org.slf4j.LoggerFactory.getLogger(classOf[IntegrationMongoClientSpec])
 
   val (sink, buffer) = sinkWithBuffer[T]
   val isFailureInvoked = new AtomicBoolean()
@@ -142,7 +141,7 @@ class IntegrationMongoClientSpec extends Specification {
         dbObject ← Resource through products.out
         _ ← dbObject to sink
       } yield ())
-        .onFailure { th ⇒ logger.debug(s"Failure: ${th.getMessage}"); halt }
+        .onFailure { th ⇒ logger.debug(s"Failure: {}", th.getMessage); halt }
         .onComplete { eval(Task.delay(logger.debug(s"Interaction $i has been completed"))) }
         .runLog.run
     }
@@ -168,11 +167,11 @@ class IntegrationMongoClientSpec extends Specification {
       prodOrCat ← Resource through ((products either cats).out)
       _ ← prodOrCat observe QueryLoggerSink to sink
     } yield ())
-      .onFailure { th ⇒ logger.debug(s"Failure: ${th.getMessage}"); halt }
+      .onFailure { th ⇒ logger.debug("Failure: {}", th.getMessage); halt }
       .onComplete { eval(Task.delay(logger.debug("Interaction has been completed"))) }
       .runLog.run
 
-    logger.info(buffer)
+    logger.info("{}", buffer)
 
     buffer.size === 5
   }

@@ -13,7 +13,6 @@
  */
 
 import scala.annotation.implicitNotFound
-import org.apache.logging.log4j.LogManager
 /**
  *
  * Based on idea from: http://io.pellucid.com/blog/abstract-algebraic-data-type
@@ -50,7 +49,7 @@ package object join {
    *
    */
   case class Join[M <: StorageModule : Joiner : Storage](implicit ctx: M#Context, client: M#Client, t: ClassTag[M]) {
-    implicit val logger = LogManager.getLogger(s"${t.runtimeClass.getName.dropWhile(_ != '$').drop(1)}-producer-join")
+    implicit val logger = org.slf4j.LoggerFactory.getLogger(s"${t.runtimeClass.getName.dropWhile(_ != '$').drop(1)}-producer-join")
 
     def join[A](outerQ: QFree[M#QueryAttributes], outerColl: String,
                 innerQ: M#Record ⇒ QFree[M#QueryAttributes], innerColl: String, resource: String)

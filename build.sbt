@@ -7,7 +7,7 @@ organization := "com.haghard"
 
 name := "nosql-join-stream"
 
-version := "0.0.3-snapshot"
+version := "0.0.3"
 
 scalaVersion := "2.11.7"
 
@@ -41,6 +41,7 @@ val RxScala = "0.25.0"
 val AkkaStreams = "1.0"
 val Akka = "2.4.0"
 val Log4J2 = "2.4"
+val Logback = "1.1.2"
 
 val localMvnRepo = "/Volumes/Data/dev_build_tools/apache-maven-3.1.1/repository"
 
@@ -68,8 +69,7 @@ libraryDependencies ++= Seq(
     "org.scalaz.stream"      %%  "scalaz-stream"            %   ScalazStreamVersion    withSources(),
     "io.reactivex"           %%  "rxscala"                  %   RxScala                withSources(),
     "com.typesafe.akka"      %%  "akka-stream-experimental" %   AkkaStreams            withSources(),
-    "org.apache.logging.log4j"%   "log4j-api"               %   Log4J2,
-    "org.apache.logging.log4j"%   "log4j-core"              %   Log4J2
+    "ch.qos.logback"         %   "logback-classic"          %   Logback
 )
 
 
@@ -79,7 +79,8 @@ libraryDependencies ++= Seq(
   "org.cassandraunit" %   "cassandra-unit"    %   "2.0.2.2" % "test",
   "org.specs2"        %%  "specs2-core"       %   "2.4.17"  % "test" withSources(),
   "org.scalatest"     %%  "scalatest"         %   "2.2.5"   % "test",
-  "com.typesafe.akka" %%  "akka-testkit" % Akka % "test"
+  "com.typesafe.akka" %%  "akka-testkit"      %   Akka      % "test",
+  "com.typesafe.akka" %%  "akka-slf4j"        %   Akka      % "test"
 )
 
 scalacOptions ++= Seq(
@@ -105,7 +106,7 @@ licenses += ("Apache-2.0", url("http://www.apache.org/licenses/"))
 
 bintrayOrganization in bintray := Some("haghard")
 
-repository in bintray := "snapshots" //"releases"
+repository in bintray := "releases" //"snapshots"
 
 publishMavenStyle := true
 //publishTo := Some(Resolver.file("file",  new File(localMvnRepo)))

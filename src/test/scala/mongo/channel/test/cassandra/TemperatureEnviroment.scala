@@ -33,7 +33,7 @@ trait TemperatureEnviroment extends BeforeAndAfterAll { this: Suite ⇒
   import java.lang.{ Long ⇒ JLong }
   import java.lang.{ Double ⇒ JDouble }
 
-  val logger = org.apache.log4j.Logger.getLogger("Сassandra-Consumer")
+  val logger = org.slf4j.LoggerFactory.getLogger("Сassandra-Consumer")
 
   implicit val executor: java.util.concurrent.ExecutorService =
     Executors.newFixedThreadPool(Runtime.getRuntime.availableProcessors(), new NamedThreadFactory("cassandra-worker"))

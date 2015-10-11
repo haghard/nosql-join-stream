@@ -23,7 +23,7 @@ import _root_.mongo.NamedThreadFactory
 import com.mongodb._
 import de.bwaldvogel.mongo.MongoServer
 import de.bwaldvogel.mongo.backend.memory.MemoryBackend
-import org.apache.log4j.Logger
+import org.slf4j.Logger
 
 import scala.collection.JavaConversions._
 import scala.collection.mutable.{ ArrayBuffer, Buffer }
@@ -35,7 +35,7 @@ import scalaz.{ -\/, \/, \/- }
 object MongoIntegrationEnv {
   import process1._
 
-  private val logger = org.apache.log4j.Logger.getLogger("mongo-streams")
+  private val logger = org.slf4j.LoggerFactory.getLogger("mongo-streams")
 
   implicit val executor = Executors.newFixedThreadPool(Runtime.getRuntime.availableProcessors(),
     new NamedThreadFactory("mongo-executor"))
@@ -122,7 +122,7 @@ object MongoIntegrationEnv {
     scalaz.stream.io.resource(Task.delay(prepareMockMongo()))(rs ⇒ Task.delay {
       rs._1.close
       rs._2.shutdownNow
-      logger.debug(s"mongo-client ${rs._1.##} has been closed")
+      logger.debug("mongo-client {} has been closed", rs._1.##)
     }) { rs ⇒
       var obtained = false
       Task.fork(
@@ -165,7 +165,7 @@ object MongoIntegrationEnv {
                       if (c.hasNext) {
                         Thread.sleep(200) //for test
                         val r = c.next
-                        logger.debug(r)
+                        logger.debug(s"$r")
                         r
                       } else {
                         logger.debug(s"Cursor: ${c.##} is exhausted")

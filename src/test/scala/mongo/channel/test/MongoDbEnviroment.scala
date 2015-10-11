@@ -24,7 +24,7 @@ trait MongoDbEnviroment extends After {
 
   type Module <: StorageModule
 
-  val logger = org.apache.logging.log4j.LogManager.getLogger("MongoStreams-Mongo-Enviroment")
+  val logger = org.slf4j.LoggerFactory.getLogger(classOf[MongoDbEnviroment])
   var client: MongoClient = _
   var server: MongoServer = _
 
