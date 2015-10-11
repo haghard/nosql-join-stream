@@ -48,14 +48,14 @@ class AkkaJoinCassandraSpec extends TestKit(ActorSystem("akka-join-stream")) wit
     q ← readConsistency(ConsistencyLevel.ONE)
   } yield q
 
-  def fold = { (acc: List[String], cur: String) ⇒ acc :+ cur }
+  def fold = { (acc: List[String], cur: String) ⇒ cur :: acc }
 
   def cmb: (CassandraAkkaStream#Record, CassandraAkkaStream#Record) ⇒ String =
     (outer, inner) ⇒
       s"Sensor №${outer.getLong("sensor")} - time: ${inner.getLong("event_time")} temperature: ${inner.getDouble("temperature")} "
 
   "CassandraJoin with Akka Streams" should {
-    "perform join" in {
+    "perform sequentual join" in {
       val latch = new CountDownLatch(1)
       val resRef = new AtomicReference(List[String]())
       val Mat = ActorMaterializer(ActorMaterializerSettings(system)
@@ -66,7 +66,7 @@ class AkkaJoinCassandraSpec extends TestKit(ActorSystem("akka-join-stream")) wit
       val joinSource =
         Join[CassandraAkkaStream].join(qSensors, SENSORS, qTemperature, TEMPERATURE, KEYSPACE)(cmb)
 
-      val future = joinSource
+      val future = joinSource.source
         .runWith(Sink.fold(List.empty[String])(fold))(Mat)
 
       future.onComplete {
@@ -96,7 +96,7 @@ class AkkaJoinCassandraSpec extends TestKit(ActorSystem("akka-join-stream")) wit
 
       val parSource = Join[CassandraAkkaStream].join(qSensors, SENSORS, qTemperature, TEMPERATURE, KEYSPACE)(cmb)
 
-      val future = parSource
+      val future = parSource.source
         .runWith(Sink.fold(List.empty[String])(fold))(ActorMaterializer(settings)(system))
 
       future.onComplete {
@@ -108,7 +108,7 @@ class AkkaJoinCassandraSpec extends TestKit(ActorSystem("akka-join-stream")) wit
           latch.countDown()
       }
       latch.await
-      resRef.get().size mustBe sensors.size
+      resRef.get().size mustBe measureSize * sensors.size
     }
   }
 }

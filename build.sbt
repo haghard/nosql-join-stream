@@ -52,6 +52,9 @@ ScalariformKeys.preferences := ScalariformKeys.preferences.value
 
 net.virtualvoid.sbt.graph.Plugin.graphSettings
 
+showCurrentGitBranch
+versionWithGit
+
 resolvers ++= Seq(
   "Local Maven Repository" at "file:///" + localMvnRepo,
   "Scalaz" at "http://dl.bintray.com/scalaz/releases"

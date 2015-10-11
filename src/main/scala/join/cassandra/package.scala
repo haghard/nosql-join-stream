@@ -40,12 +40,12 @@ package object cassandra {
   trait CassandraObsFetchError extends CassandraObservable
 
   trait CassandraProcess extends Cassandra {
-    override type Stream[Out] = _root_.mongo.channel.DBChannel[Client, Out]
+    override type Stream[Out] = _root_.mongo.channel.ScalazChannel[Client, Out]
     override type Context = java.util.concurrent.ExecutorService
   }
 
   trait CassandraAkkaStream extends Cassandra {
-    override type Stream[Out] = akka.stream.scaladsl.Source[Out, Unit]
+    override type Stream[Out] = _root_.mongo.channel.AkkaChannel[Out, Unit]
     override type Context = akka.actor.ActorSystem \/ join.Joiner.AkkaConcurrentAttributes
   }
 }

@@ -38,8 +38,10 @@ package object join {
       def next(): Record
     }
     type Client
+
     type Stream[A] <: {
       def map[B](f: A ⇒ B): Stream[B]
+      def flatMap[B](f: A ⇒ Stream[B]): Stream[B]
     }
 
     type Context
@@ -138,11 +140,26 @@ package object join {
       override def join[A, B, C](outer: CassandraObsFetchError#Stream[A])(relation: (A) => CassandraObsFetchError#Stream[B])
                                 (mapper: (A, B) => C)
                                 (implicit ctx: CassandraObsFetchError#Context): CassandraObsFetchError#Stream[C] =
-        for {id ← outer; rs ← relation(id).map(mapper(id, _))} yield {
-          rs
-        }
+        for {id ← outer; rs ← relation(id).map(mapper(id, _))} yield rs
     }
 
+
+    implicit object MongoASP extends Joiner[MongoAkkaStream] {
+      override def join[A, B, C](outer: MongoAkkaStream#Stream[A])(relation: (A) => MongoAkkaStream#Stream[B])
+                                (mapper: (A, B) => C)
+                                (implicit ctx: MongoAkkaStream#Context): MongoAkkaStream#Stream[C] =
+        for {id ← outer; rs ← relation(id).map(mapper(id, _))} yield rs
+    }
+
+    implicit object CassandraASP extends Joiner[CassandraAkkaStream] {
+      override def join[A, B, C](outer: CassandraAkkaStream#Stream[A])(relation: (A) => CassandraAkkaStream#Stream[B])
+                                (mapper: (A, B) => C)
+                                (implicit ctx: CassandraAkkaStream#Context): CassandraAkkaStream#Stream[C] =
+        for {id ← outer; rs ← relation(id).map(mapper(id, _))} yield rs
+    }
+
+
+    /*
     private type AkkaSource[x] = akka.stream.scaladsl.Source[x, Unit]
 
     private def akkaSequentualSource[A, B, C](outer: AkkaSource[A], relation: (A) => AkkaSource[B], cmb: (A, B) => C,
@@ -182,9 +199,6 @@ package object join {
       }).conflate(_.reduce(S.append(_, _)))((line, list) => S.append(line, list.reduce(S.append(_, _))))
     }
 
-    /**
-     *
-     */
     private def akkaParallelSource2[A, B, C](outer: AkkaSource[A], relation: (A) => AkkaSource[B],
                                              cmb: (A, B) => C, parallelism: Int)
                                             (implicit Mat: akka.stream.ActorMaterializer, S: scalaz.Semigroup[C]): AkkaSource[C] =
@@ -198,6 +212,7 @@ package object join {
         }
       }.flatten(akka.stream.scaladsl.FlattenStrategy.concat[C])
 
+    */
     case class AkkaConcurrentAttributes(setting: akka.stream.ActorMaterializerSettings,
                                         system: akka.actor.ActorSystem,
                                         parallelism: Int,

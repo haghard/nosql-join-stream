@@ -21,7 +21,7 @@ import dsl.mongo.MongoQueryInterpreter
 import join.StorageModule
 import join.cassandra._
 import join.mongo._
-import mongo.channel.DBChannel
+import mongo.channel.ScalazChannel
 import org.apache.logging.log4j.Logger
 import com.mongodb.MongoException
 import com.datastax.driver.core.Cluster
@@ -34,6 +34,7 @@ import scalaz.concurrent.Task
 import scalaz.stream.{ Cause, io }
 import scalaz.stream.Process
 import scalaz.syntax.id._
+import _root_.mongo.channel.AkkaChannel
 
 package object storage {
 
@@ -326,14 +327,14 @@ package object storage {
                          resource: String, log: Logger, ctx: CassandraAkkaStream#Context):
       (CassandraAkkaStream#Client) => CassandraAkkaStream#Stream[CassandraAkkaStream#Record] =
         client =>
-          Source(() => DbIterator.cassandra(qs, client, resource, collection, log))
+          AkkaChannel(Source(() => DbIterator.cassandra(qs, client, resource, collection, log)))
 
       override def inner(r: (CassandraAkkaStream#Record) => QFree[CassandraAkkaStream#QueryAttributes], collection: String, resource: String,
                          log: Logger, ctx: CassandraAkkaStream#Context):
       (CassandraAkkaStream#Client) => (CassandraAkkaStream#Record) => CassandraAkkaStream#Stream[CassandraAkkaStream#Record] = {
         client =>
           outer =>
-            Source(() => DbIterator.cassandra(r(outer), client, resource, collection, log))
+            AkkaChannel(Source(() => DbIterator.cassandra(r(outer), client, resource, collection, log)))
       }
     }
 
@@ -343,14 +344,14 @@ package object storage {
                          resource: String, log: Logger, ctx: MongoAkkaStream#Context):
                          (MongoAkkaStream#Client) => MongoAkkaStream#Stream[MongoAkkaStream#Record] =
         client =>
-          Source(() => DbIterator.mongo(qs, client, resource, collection, log))
+          AkkaChannel(Source(() => DbIterator.mongo(qs, client, resource, collection, log)))
 
       override def inner(relation: (MongoAkkaStream#Record) => QFree[MongoAkkaStream#QueryAttributes], collection: String,
                          resource: String, log: Logger, ctx: MongoAkkaStream#Context):
         (MongoAkkaStream#Client) => (MongoAkkaStream#Record) => MongoAkkaStream#Stream[MongoAkkaStream#Record] =
           client =>
              outer =>
-               Source(() => DbIterator.mongo(relation(outer), client, resource, collection, log))
+               AkkaChannel(Source(() => DbIterator.mongo(relation(outer), client, resource, collection, log)))
     }
 
     implicit object MongoStorageObservable extends Storage[MongoObservable] {
@@ -509,18 +510,18 @@ package object storage {
         }
 
       override def outer(qs: QFree[MongoProcess#QueryAttributes], collection: String, resource: String,
-                         logger: Logger, ctx: MongoProcess#Context): (MongoProcess#Client) ⇒ DBChannel[MongoProcess#Client, MongoProcess#Record] =
+                         logger: Logger, ctx: MongoProcess#Context): (MongoProcess#Client) ⇒ ScalazChannel[MongoProcess#Client, MongoProcess#Record] =
         client ⇒
-          DBChannel[MongoProcess#Client, MongoProcess#Record](Process.eval(Task { client: MongoProcess#Client ⇒
+          ScalazChannel[MongoProcess#Client, MongoProcess#Record](Process.eval(Task { client: MongoProcess#Client ⇒
             Task.delay(mongoR(qs, client, collection, resource, logger))
           }(ctx)))
 
       override def inner(relation: (MongoProcess#Record) ⇒ QFree[MongoProcess#QueryAttributes],
                          collection: String, resource: String, logger: Logger,
-                         ctx: MongoProcess#Context): (MongoProcess#Client) ⇒ (MongoProcess#Record) ⇒ DBChannel[MongoProcess#Client, MongoProcess#Record] = {
+                         ctx: MongoProcess#Context): (MongoProcess#Client) ⇒ (MongoProcess#Record) ⇒ ScalazChannel[MongoProcess#Client, MongoProcess#Record] = {
         client ⇒
           outer ⇒
-            DBChannel[MongoProcess#Client, MongoProcess#Record](Process.eval(Task { client: MongoProcess#Client ⇒
+            ScalazChannel[MongoProcess#Client, MongoProcess#Record](Process.eval(Task { client: MongoProcess#Client ⇒
               Task.delay(mongoR(relation(outer), client, collection, resource, logger))
             }(ctx)))
       }
@@ -554,18 +555,18 @@ package object storage {
 
       override def outer(qs: QFree[CassandraProcess#QueryAttributes],
                          collection: String, resource: String, logger: Logger,
-                         ctx: CassandraProcess#Context): (CassandraProcess#Client) ⇒ DBChannel[CassandraProcess#Client, CassandraProcess#Record] =
+                         ctx: CassandraProcess#Context): (CassandraProcess#Client) ⇒ ScalazChannel[CassandraProcess#Client, CassandraProcess#Record] =
         client ⇒
-          DBChannel[CassandraProcess#Client, CassandraProcess#Record](Process.eval(Task { client: CassandraProcess#Client ⇒
+          ScalazChannel[CassandraProcess#Client, CassandraProcess#Record](Process.eval(Task { client: CassandraProcess#Client ⇒
             Task.delay(cassandraResource(qs, client, collection, resource, logger))
           }(ctx)))
 
       override def inner(relation: (CassandraProcess#Record) ⇒ QFree[CassandraProcess#QueryAttributes],
                          collection: String, resource: String, logger: Logger,
-                         ctx: CassandraProcess#Context): (CassandraProcess#Client) ⇒ (CassandraProcess#Record) ⇒ DBChannel[CassandraProcess#Client, CassandraProcess#Record] =
+                         ctx: CassandraProcess#Context): (CassandraProcess#Client) ⇒ (CassandraProcess#Record) ⇒ ScalazChannel[CassandraProcess#Client, CassandraProcess#Record] =
         client ⇒
           outer ⇒
-            DBChannel[CassandraProcess#Client, CassandraProcess#Record](Process.eval(Task { client: CassandraProcess#Client ⇒
+            ScalazChannel[CassandraProcess#Client, CassandraProcess#Record](Process.eval(Task { client: CassandraProcess#Client ⇒
               Task.delay(cassandraResource(relation(outer), client, collection, resource, logger))
             }(ctx)))
     }

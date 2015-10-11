@@ -31,7 +31,6 @@ import akka.stream.{ Supervision, ActorMaterializerSettings, ActorMaterializer }
 import mongo.channel.test.{ MongoIntegrationEnv, MongoDbEnviroment }
 import org.scalatest.{ BeforeAndAfterAll, BeforeAndAfterEach, MustMatchers, WordSpecLike }
 
-import akka.stream.scaladsl.Sink
 import scala.util.{ Failure, Success }
 import scalaz.{ -\/, \/- }
 
@@ -72,8 +71,8 @@ class AkkaJoinMongoSpec extends TestKit(ActorSystem("akka-join-stream")) with Wo
 
     val joinSource = Join[MongoAkkaStream].join(qLang, LANGS, qProg(_), PROGRAMMERS, TEST_DB)(cmb)
 
-    val futureSeq = joinSource
-      .runWith(Sink.fold(List.empty[String])(folder))(materializer)
+    val futureSeq = joinSource.source
+      .runFold(List.empty[String])(folder)(materializer)
 
     futureSeq.onComplete {
       case Success(r) ⇒
@@ -102,8 +101,8 @@ class AkkaJoinMongoSpec extends TestKit(ActorSystem("akka-join-stream")) with Wo
 
     val parSource = Join[MongoAkkaStream].join(qLang, LANGS, qProg(_), PROGRAMMERS, TEST_DB)(cmb)
 
-    val futurePar = parSource
-      .runWith(Sink.fold(List.empty[String])(folder))(ActorMaterializer(settings)(system))
+    val futurePar = parSource.source
+      .runFold(List.empty[String])(folder)(ActorMaterializer(settings)(system))
 
     futurePar.onComplete {
       case Success(r) ⇒
@@ -116,7 +115,9 @@ class AkkaJoinMongoSpec extends TestKit(ActorSystem("akka-join-stream")) with Wo
 
     latch.await(5, TimeUnit.SECONDS) mustBe true
     logger.info("Par: " + resRef.get)
-    resRef.get.size mustBe PkLimit
+    resRef.get.size mustBe MongoIntegrationEnv.programmersSize
+    //PkLimit
+
     //for akkaParallelSource2
     //resRef.get.size mustBe MongoIntegrationEnv.programmersSize
   }
