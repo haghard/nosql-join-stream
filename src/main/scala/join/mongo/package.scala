@@ -14,8 +14,6 @@
 
 package join
 
-import scalaz.\/
-
 package object mongo {
 
   case class MongoReadSettings(query: com.mongodb.DBObject, sort: Option[com.mongodb.DBObject] = None,
@@ -41,8 +39,8 @@ package object mongo {
   trait MongoObsCursorError extends MongoObservable
   trait MongoObsFetchError extends MongoObservable
 
-  trait MongoAkkaStream extends Mongo {
+  trait MongoSource extends Mongo {
     override type Stream[Out] = _root_.mongo.channel.AkkaChannel[Out, Unit]
-    override type Context = akka.actor.ActorSystem \/ join.Joiner.AkkaConcurrentAttributes
+    override type Context = scala.concurrent.ExecutionContext
   }
 }

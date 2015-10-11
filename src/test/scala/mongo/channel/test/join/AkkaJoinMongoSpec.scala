@@ -17,7 +17,6 @@ package mongo.channel.test.join
 import java.util.concurrent.{ TimeUnit, CountDownLatch }
 import java.util.concurrent.atomic.AtomicReference
 
-import join.Joiner.AkkaConcurrentAttributes
 import mongo._
 import join.Join
 import dsl.mongo._
@@ -25,20 +24,17 @@ import akka.testkit.TestKit
 import com.mongodb.DBObject
 import akka.actor.ActorSystem
 import org.apache.log4j.Logger
-import join.mongo.MongoAkkaStream
+import join.mongo.MongoSource
 import mongo.channel.test.MongoIntegrationEnv._
 import akka.stream.{ Supervision, ActorMaterializerSettings, ActorMaterializer }
 import mongo.channel.test.{ MongoIntegrationEnv, MongoDbEnviroment }
 import org.scalatest.{ BeforeAndAfterAll, BeforeAndAfterEach, MustMatchers, WordSpecLike }
-
 import scala.util.{ Failure, Success }
-import scalaz.{ -\/, \/- }
 
 class AkkaJoinMongoSpec extends TestKit(ActorSystem("akka-join-stream")) with WordSpecLike
     with MustMatchers with BeforeAndAfterEach with BeforeAndAfterAll {
 
   val logger = Logger.getLogger("akka-join-stream")
-  implicit val dispatcher = system.dispatchers.lookup("akka.join-dispatcher")
 
   override def afterAll() = TestKit.shutdownActorSystem(system)
 
@@ -47,78 +43,44 @@ class AkkaJoinMongoSpec extends TestKit(ActorSystem("akka-join-stream")) with Wo
 
   def qProg(left: DBObject) = for { q ← "lang" $eq left.get("index").asInstanceOf[Int] } yield q
 
-  def folder = { (acc: List[String], cur: String) ⇒ acc :+ cur }
-
-  def cmb: (MongoAkkaStream#Record, MongoAkkaStream#Record) ⇒ String =
+  def cmb: (MongoSource#Record, MongoSource#Record) ⇒ String =
     (outer, inner) ⇒
       s"""[PK:${outer.get("index")}] - [FK:${inner.get("lang")} - ${inner.get("name")}]"""
+
+  val decider: Supervision.Decider = {
+    case _ ⇒ Supervision.Stop
+  }
+
+  val dName = "akka.join-dispatcher"
+  val settings = ActorMaterializerSettings(system)
+    .withInputBuffer(32, 64)
+    .withDispatcher(dName)
+    .withSupervisionStrategy(decider)
+  implicit val Mat = ActorMaterializer(settings)
+  implicit val dispatcher = system.dispatchers.lookup(dName)
 
   "MongoJoin with Akka Streams" in new MongoDbEnviroment {
     initMongo
     val latch = new CountDownLatch(1)
     val resRef = new AtomicReference(List.empty[String])
     implicit val c = client
-    val decider: Supervision.Decider = {
-      case _ ⇒ Supervision.Stop
-    }
-    val materializer = ActorMaterializer(
-      ActorMaterializerSettings(system)
-        .withDispatcher("akka.join-dispatcher")
-        .withSupervisionStrategy(decider)
-    )
 
-    implicit val Attributes = -\/(system)
-
-    val joinSource = Join[MongoAkkaStream].join(qLang, LANGS, qProg(_), PROGRAMMERS, TEST_DB)(cmb)
+    val joinSource = Join[MongoSource].join(qLang, LANGS, qProg(_), PROGRAMMERS, TEST_DB)(cmb)
 
     val futureSeq = joinSource.source
-      .runFold(List.empty[String])(folder)(materializer)
+      .runFold(List.empty[String]) { (acc, cur) ⇒ cur :: acc }
 
     futureSeq.onComplete {
       case Success(r) ⇒
         resRef.set(r)
         latch.countDown()
       case Failure(ex) ⇒
-        logger.info("★ ★ ★ MongoAkkaStream seq has been competed with error:" + ex.getMessage)
+        logger.info("★ ★ ★ MongoAkkaStream join has been competed with error {}", ex)
         latch.countDown()
     }
 
     latch.await(5, TimeUnit.SECONDS) mustBe true
-    logger.info("Seq: " + resRef.get())
+    logger.info("Seq: {}", resRef.get())
     resRef.get().size mustBe MongoIntegrationEnv.programmersSize
-  }
-
-  "MongoJoinPar with Akka Streams" in new MongoDbEnviroment {
-    initMongo
-    implicit val c = client
-
-    val latch = new CountDownLatch(1)
-    val resRef = new AtomicReference(List.empty[String])
-    import scalaz.std.AllInstances._
-
-    val settings = ActorMaterializerSettings(system).withDispatcher("akka.join-dispatcher")
-    implicit val Attributes = \/-(AkkaConcurrentAttributes(settings, system, 4, scalaz.Semigroup[String]))
-
-    val parSource = Join[MongoAkkaStream].join(qLang, LANGS, qProg(_), PROGRAMMERS, TEST_DB)(cmb)
-
-    val futurePar = parSource.source
-      .runFold(List.empty[String])(folder)(ActorMaterializer(settings)(system))
-
-    futurePar.onComplete {
-      case Success(r) ⇒
-        resRef.set(r)
-        latch.countDown()
-      case Failure(ex) ⇒
-        logger.info("★ ★ ★  MongoAkkaStream parallel has been competed with error:" + ex.getMessage)
-        latch.countDown()
-    }
-
-    latch.await(5, TimeUnit.SECONDS) mustBe true
-    logger.info("Par: " + resRef.get)
-    resRef.get.size mustBe MongoIntegrationEnv.programmersSize
-    //PkLimit
-
-    //for akkaParallelSource2
-    //resRef.get.size mustBe MongoIntegrationEnv.programmersSize
   }
 }

@@ -1,3 +1,4 @@
+import com.typesafe.sbt.SbtGit.git
 import com.typesafe.sbt.SbtScalariform.ScalariformKeys
 import scalariform.formatter.preferences._
 import bintray.Keys._
@@ -54,6 +55,7 @@ net.virtualvoid.sbt.graph.Plugin.graphSettings
 
 showCurrentGitBranch
 versionWithGit
+git.baseVersion := "master"
 
 resolvers ++= Seq(
   "Local Maven Repository" at "file:///" + localMvnRepo,

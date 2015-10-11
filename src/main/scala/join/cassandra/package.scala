@@ -14,8 +14,6 @@
 
 package join
 
-import scalaz.\/
-
 package object cassandra {
   import com.datastax.driver.core.ConsistencyLevel
 
@@ -44,8 +42,8 @@ package object cassandra {
     override type Context = java.util.concurrent.ExecutorService
   }
 
-  trait CassandraAkkaStream extends Cassandra {
+  trait CassandraSource extends Cassandra {
     override type Stream[Out] = _root_.mongo.channel.AkkaChannel[Out, Unit]
-    override type Context = akka.actor.ActorSystem \/ join.Joiner.AkkaConcurrentAttributes
+    override type Context = scala.concurrent.ExecutionContext
   }
 }

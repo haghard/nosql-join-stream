@@ -19,24 +19,19 @@ import java.util.concurrent.atomic.AtomicReference
 
 import join.Join
 import akka.testkit.TestKit
-import join.Joiner.AkkaConcurrentAttributes
 import akka.actor.ActorSystem
-import join.cassandra.CassandraAkkaStream
+import join.cassandra.CassandraSource
 import mongo.channel.test.cassandra.TemperatureEnviroment
-import akka.stream.scaladsl.Sink
-import akka.stream.{ ActorMaterializerSettings, ActorMaterializer }
+import akka.stream.{ Supervision, ActorMaterializerSettings, ActorMaterializer }
 import com.datastax.driver.core.{ Cluster, ConsistencyLevel, Row ⇒ CRow }
 import org.scalatest.{ BeforeAndAfterAll, BeforeAndAfterEach, MustMatchers, WordSpecLike }
-
 import scala.util.{ Failure, Success }
-import scalaz.{ -\/, \/- }
 
 class AkkaJoinCassandraSpec extends TestKit(ActorSystem("akka-join-stream")) with WordSpecLike
     with MustMatchers with BeforeAndAfterEach with BeforeAndAfterAll with TemperatureEnviroment {
 
   import dsl.cassandra._
 
-  implicit val dispatcher = system.dispatchers.lookup("akka.join-dispatcher")
   override def afterAll() = TestKit.shutdownActorSystem(system)
 
   val selectSensor = "SELECT sensor FROM {0}"
@@ -48,66 +43,44 @@ class AkkaJoinCassandraSpec extends TestKit(ActorSystem("akka-join-stream")) wit
     q ← readConsistency(ConsistencyLevel.ONE)
   } yield q
 
-  def fold = { (acc: List[String], cur: String) ⇒ cur :: acc }
-
-  def cmb: (CassandraAkkaStream#Record, CassandraAkkaStream#Record) ⇒ String =
+  def cmb: (CassandraSource#Record, CassandraSource#Record) ⇒ String =
     (outer, inner) ⇒
       s"Sensor №${outer.getLong("sensor")} - time: ${inner.getLong("event_time")} temperature: ${inner.getDouble("temperature")} "
 
+  val decider: Supervision.Decider = {
+    case _ ⇒ Supervision.Stop
+  }
+
+  val dName = "akka.join-dispatcher"
+  val settings = ActorMaterializerSettings(system)
+    .withInputBuffer(32, 64)
+    .withDispatcher(dName)
+    .withSupervisionStrategy(decider)
+  implicit val Mat = ActorMaterializer(settings)
+  implicit val dispatcher = system.dispatchers.lookup(dName)
+
   "CassandraJoin with Akka Streams" should {
-    "perform sequentual join" in {
+    "perform join" in {
       val latch = new CountDownLatch(1)
       val resRef = new AtomicReference(List[String]())
-      val Mat = ActorMaterializer(ActorMaterializerSettings(system)
-        .withDispatcher("akka.join-dispatcher"))
-
       implicit val client = Cluster.builder().addContactPointsWithPorts(cassandraHost).build
-      implicit val Attributes = -\/(system)
+
       val joinSource =
-        Join[CassandraAkkaStream].join(qSensors, SENSORS, qTemperature, TEMPERATURE, KEYSPACE)(cmb)
+        Join[CassandraSource].join(qSensors, SENSORS, qTemperature, TEMPERATURE, KEYSPACE)(cmb)
 
       val future = joinSource.source
-        .runWith(Sink.fold(List.empty[String])(fold))(Mat)
+        .runFold(List.empty[String]) { (acc, cur) ⇒ cur :: acc }
 
       future.onComplete {
         case Success(r) ⇒
           resRef.set(r)
           latch.countDown()
         case Failure(ex) ⇒
-          fail("★ ★ ★ CassandraAkkaStream sequentual has been competed with error:" + ex.getMessage)
+          fail("★ ★ ★ CassandraAkkaStream join has been competed with error:" + ex.getMessage)
           latch.countDown()
       }
 
       latch.await()
-      resRef.get().size mustBe measureSize * sensors.size
-    }
-  }
-
-  "CassandraJoinPar with Akka Streams" should {
-    "perform parallel join" in {
-      import scalaz.std.AllInstances._
-      val latch = new CountDownLatch(1)
-      val resRef = new AtomicReference(List[String]())
-
-      val settings = ActorMaterializerSettings(system).withDispatcher("akka.join-dispatcher")
-      implicit val Attributes = \/-(AkkaConcurrentAttributes(settings, system, 4, scalaz.Semigroup[String]))
-
-      implicit val client = Cluster.builder().addContactPointsWithPorts(cassandraHost).build
-
-      val parSource = Join[CassandraAkkaStream].join(qSensors, SENSORS, qTemperature, TEMPERATURE, KEYSPACE)(cmb)
-
-      val future = parSource.source
-        .runWith(Sink.fold(List.empty[String])(fold))(ActorMaterializer(settings)(system))
-
-      future.onComplete {
-        case Success(r) ⇒
-          resRef.set(r)
-          latch.countDown()
-        case Failure(ex) ⇒
-          fail("★ ★ ★ CassandraAkkaStream par has been competed with error:" + ex.getMessage)
-          latch.countDown()
-      }
-      latch.await
       resRef.get().size mustBe measureSize * sensors.size
     }
   }

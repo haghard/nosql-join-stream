@@ -34,7 +34,9 @@ trait TemperatureEnviroment extends BeforeAndAfterAll { this: Suite ⇒
   import java.lang.{ Double ⇒ JDouble }
 
   val logger = org.apache.log4j.Logger.getLogger("Сassandra-Consumer")
-  implicit val executor = Executors.newFixedThreadPool(Runtime.getRuntime.availableProcessors(), new NamedThreadFactory("cassandra-worker"))
+
+  implicit val executor: java.util.concurrent.ExecutorService =
+    Executors.newFixedThreadPool(Runtime.getRuntime.availableProcessors(), new NamedThreadFactory("cassandra-worker"))
 
   val cassandraHost = List(new InetSocketAddress("127.0.0.1", 9142)).asJava
 

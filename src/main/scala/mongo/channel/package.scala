@@ -23,6 +23,7 @@ import scalaz.stream.Process._
 import scalaz.stream._
 import scalaz.stream.process1._
 import scalaz.{ -\/, \/, \/- }
+import akka.stream.scaladsl.{ Source ⇒ AkkaSource }
 
 package object channel {
 
@@ -36,20 +37,7 @@ package object channel {
     def createChannel(arg: String \/ QuerySetting)(implicit pool: ExecutorService): ScalazChannel[T, com.mongodb.DBObject]
   }
 
-  /**
-   * class AkkaChannel[A, U]/*(source: akka.stream.scaladsl.Source[A, U])*/ extends
-   * scalaz.Monad[({ type l[A] = akka.stream.scaladsl.Source[A, Unit]})#l ] {
-   *
-   * override def point[A](a: => A): akka.stream.scaladsl.Source[A, Unit] =
-   * akka.stream.scaladsl.Source.single(a)
-   *
-   * override def bind[A, B](fa: akka.stream.scaladsl.Source[A, Unit])
-   * (f: (A) => akka.stream.scaladsl.Source[B, Unit]): akka.stream.scaladsl.Source[B, Unit] =
-   * fa.map(in => f(in).point[]).
-   * flatten(akka.stream.scaladsl.FlattenStrategy.concat[B])
-   *
-   */
-  case class AkkaChannel[A, U](source: akka.stream.scaladsl.Source[A, U]) {
+  case class AkkaChannel[A, U](source: AkkaSource[A, U]) {
     def map[B](f: A ⇒ B): AkkaChannel[B, U] =
       AkkaChannel[B, U] { source map f }
 

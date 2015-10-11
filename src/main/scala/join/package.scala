@@ -13,7 +13,7 @@
  */
 
 import scala.annotation.implicitNotFound
-
+import org.apache.logging.log4j.LogManager
 /**
  *
  * Based on idea from: http://io.pellucid.com/blog/abstract-algebraic-data-type
@@ -46,19 +46,19 @@ package object join {
    * This is done for compiler to find all implicit instance. Let's call them ``internal dependencies`` for our domain.
    * They define internal structure of the library
    *
-   * Also we ask for [[DBModule#Context]] and [[DBModule#Client]]. They are ours external dependencies
+   * Also we ask for [[M#Context]] and [[M#Client]]. They are ours external dependencies
    *
    */
-  case class Join[DBModule <: StorageModule : Joiner : Storage](implicit ctx: DBModule#Context, client: DBModule#Client, t: ClassTag[DBModule]) {
-    implicit val logger = org.apache.logging.log4j.LogManager.getLogger(s"${t.runtimeClass.getName.dropWhile(_ != '$').drop(1)}-producer-join")
+  case class Join[M <: StorageModule : Joiner : Storage](implicit ctx: M#Context, client: M#Client, t: ClassTag[M]) {
+    implicit val logger = LogManager.getLogger(s"${t.runtimeClass.getName.dropWhile(_ != '$').drop(1)}-producer-join")
 
-    def join[A](outerQ: QFree[DBModule#QueryAttributes], outerColl: String,
-                innerQ: DBModule#Record ⇒ QFree[DBModule#QueryAttributes], innerColl: String, resource: String)
-                (mapper: (DBModule#Record, DBModule#Record) ⇒ A): DBModule#Stream[A] = {
-      val storage = Storage[DBModule]
+    def join[A](outerQ: QFree[M#QueryAttributes], outerColl: String,
+                innerQ: M#Record ⇒ QFree[M#QueryAttributes], innerColl: String, resource: String)
+                (mapper: (M#Record, M#Record) ⇒ A): M#Stream[A] = {
+      val storage = Storage[M]
       val outer = storage.outer(outerQ, outerColl, resource, logger, ctx)(client)
       val relation = storage.inner(innerQ, innerColl, resource, logger, ctx)(client)
-      Joiner[DBModule].join[DBModule#Record, DBModule#Record, A](outer)(relation)(mapper)
+      Joiner[M].join[M#Record, M#Record, A](outer)(relation)(mapper)
     }
   }
 
@@ -69,47 +69,44 @@ package object join {
   }
 
   object Joiner {
-    import join.mongo.{MongoObservable, MongoProcess, MongoAkkaStream, MongoObsCursorError, MongoObsFetchError}
-    import join.cassandra.{CassandraObservable, CassandraProcess, CassandraAkkaStream, CassandraObsFetchError, CassandraObsCursorError}
+    import join.mongo.{MongoObservable, MongoProcess, MongoSource, MongoObsCursorError, MongoObsFetchError}
+    import join.cassandra.{CassandraObservable, CassandraProcess, CassandraSource, CassandraObsFetchError, CassandraObsCursorError}
 
     implicit object MongoP extends Joiner[MongoProcess] {
-      def join[A, B, C](outer: MongoProcess#Stream[A])(relation: A ⇒ MongoProcess#Stream[B])(mapper: (A, B) ⇒ C)
+      def join[A, B, C](outer: MongoProcess#Stream[A])(relation: A ⇒ MongoProcess#Stream[B])
+                       (mapper: (A, B) ⇒ C)
                        (implicit ctx: MongoProcess#Context): MongoProcess#Stream[C] =
-        for { id ← outer; rs ← relation(id) |> scalaz.stream.process1.lift(mapper(id, _)) } yield rs
+        for { id ← outer; rs ← relation(id).map(mapper(id, _)) } yield rs
     }
 
     implicit object MongoO extends Joiner[MongoObservable] {
-      override def join[A, B, C](outer: MongoObservable#Stream[A])(relation: A ⇒ MongoObservable#Stream[B])(mapper: (A, B) ⇒ C)
+      override def join[A, B, C](outer: MongoObservable#Stream[A])(relation: A ⇒ MongoObservable#Stream[B])
+                                (mapper: (A, B) ⇒ C)
                                 (implicit ctx: MongoObservable#Context): MongoObservable#Stream[C] =
         for { id ← outer; rs ← relation(id).map(mapper(id, _))  } yield rs
     }
 
     implicit object MongoOCursorError extends Joiner[MongoObsCursorError] {
-      override def join[A, B, C](outer: MongoObsCursorError#Stream[A])(relation: A ⇒ MongoObsCursorError#Stream[B])(mapper: (A, B) ⇒ C)
+      override def join[A, B, C](outer: MongoObsCursorError#Stream[A])(relation: A ⇒ MongoObsCursorError#Stream[B])
+                                (mapper: (A, B) ⇒ C)
                                 (implicit ctx: MongoObsCursorError#Context): MongoObsCursorError#Stream[C] =
         for {id ← outer; rs ← relation(id).map(mapper(id, _))} yield rs
     }
 
     implicit object MongoOFetchError extends Joiner[MongoObsFetchError] {
-      override def join[A, B, C](outer: MongoObsFetchError#Stream[A])(relation: A ⇒ MongoObsFetchError#Stream[B])(mapper: (A, B) ⇒ C)
+      override def join[A, B, C](outer: MongoObsFetchError#Stream[A])(relation: A ⇒ MongoObsFetchError#Stream[B])
+                                (mapper: (A, B) ⇒ C)
                                 (implicit ctx: MongoObsFetchError#Context): MongoObsFetchError#Stream[C] =
         for {id ← outer; rs ← relation(id).map(mapper(id, _))} yield rs
     }
 
-    /**
-     *
-     *
-     */
     implicit object CassandraP extends Joiner[CassandraProcess] {
-      override def join[A, B, C](outer: CassandraProcess#Stream[A])(relation: A ⇒ CassandraProcess#Stream[B])(mapper: (A, B) ⇒ C)
+      override def join[A, B, C](outer: CassandraProcess#Stream[A])(relation: A ⇒ CassandraProcess#Stream[B])
+                                (mapper: (A, B) ⇒ C)
                                 (implicit ctx: CassandraProcess#Context): CassandraProcess#Stream[C] =
         for { id ← outer; rs ← relation(id).map(mapper(id, _)) } yield rs
     }
 
-    /**
-     *
-     *
-     */
     implicit object CassandraO extends Joiner[CassandraObservable] {
       override def join[A, B, C](outer: CassandraObservable#Stream[A])(relation: (A) ⇒ CassandraObservable#Stream[B])(mapper: (A, B) ⇒ C)
                                 (implicit ctx: CassandraObservable#Context): CassandraObservable#Stream[C] =
@@ -131,24 +128,22 @@ package object join {
     }
 
 
-    implicit object MongoASP extends Joiner[MongoAkkaStream] {
-      override def join[A, B, C](outer: MongoAkkaStream#Stream[A])(relation: (A) => MongoAkkaStream#Stream[B])
+    implicit object MongoASP extends Joiner[MongoSource] {
+      override def join[A, B, C](outer: MongoSource#Stream[A])(relation: (A) => MongoSource#Stream[B])
                                 (mapper: (A, B) => C)
-                                (implicit ctx: MongoAkkaStream#Context): MongoAkkaStream#Stream[C] =
-        for {id ← outer; rs ← relation(id).map(mapper(id, _))} yield rs
+                                (implicit ctx: MongoSource#Context): MongoSource#Stream[C] =
+        for { id ← outer; rs ← relation(id).map(mapper(id, _)) } yield rs
     }
 
-    implicit object CassandraASP extends Joiner[CassandraAkkaStream] {
-      override def join[A, B, C](outer: CassandraAkkaStream#Stream[A])(relation: (A) => CassandraAkkaStream#Stream[B])
+    implicit object CassandraASP extends Joiner[CassandraSource] {
+      override def join[A, B, C](outer: CassandraSource#Stream[A])(relation: (A) => CassandraSource#Stream[B])
                                 (mapper: (A, B) => C)
-                                (implicit ctx: CassandraAkkaStream#Context): CassandraAkkaStream#Stream[C] =
-        for {id ← outer; rs ← relation(id).map(mapper(id, _))} yield rs
+                                (implicit ctx: CassandraSource#Context): CassandraSource#Stream[C] =
+        for { id ← outer; rs ← relation(id).map(mapper(id, _)) } yield rs
     }
-
 
     /*
     private type AkkaSource[x] = akka.stream.scaladsl.Source[x, Unit]
-
     private def akkaSequentualSource[A, B, C](outer: AkkaSource[A], relation: (A) => AkkaSource[B], cmb: (A, B) => C,
                                               system: akka.actor.ActorSystem): AkkaSource[C] =
       outer.map(a => relation(a).map(b => cmb(a, b)))
@@ -200,10 +195,10 @@ package object join {
       }.flatten(akka.stream.scaladsl.FlattenStrategy.concat[C])
 
     */
-    case class AkkaConcurrentAttributes(setting: akka.stream.ActorMaterializerSettings,
-                                        system: akka.actor.ActorSystem,
-                                        parallelism: Int,
-                                        S: scalaz.Semigroup[T] forSome {type T})
+
+    /*case class AkkaConcurrentAttributes(setting: akka.stream.ActorMaterializerSettings,
+                                        system: akka.actor.ActorSystem, parallelism: Int,
+                                        S: scalaz.Semigroup[T] forSome {type T})*/
 
     def apply[T <: StorageModule: Joiner: Storage]: Joiner[T] = implicitly[Joiner[T]]
   }
