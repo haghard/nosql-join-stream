@@ -12,18 +12,11 @@
  * limitations under the License.
  */
 
-import akka.stream.scaladsl._
-
 import scala.annotation.implicitNotFound
 
 /**
  *
  * Based on idea from: http://io.pellucid.com/blog/abstract-algebraic-data-type
- *
- * Since akka source isn't the monad we can't use this constraint anymore
- * type Stream[A] <: {
- *  def flatMap[B](f: A ⇒ Stream[B]): Stream[B]
- * }
  */
 package object join {
   import dsl.QFree
