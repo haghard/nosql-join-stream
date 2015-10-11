@@ -50,8 +50,14 @@ from mongo.channel.test.join.JoinCassandraSpec
   }
   
   //to get akka Source
-  val Mat = ActorMaterializer(ActorMaterializerSettings(system).withDispatcher("akka.join-dispatcher"))
-  implicit val Attributes = -\/(system)       
+  val dName = "akka.join-dispatcher"
+    val settings = ActorMaterializerSettings(system)
+      .withInputBuffer(32, 64)
+      .withDispatcher(dName)
+      .withSupervisionStrategy(decider)
+  implicit val Mat = ActorMaterializer(settings)
+  implicit val dispatcher = system.dispatchers.lookup(dName)
+             
   val joinQuery = Join[CassandraAkkaStream].join(qSensors, SENSORS, qTemperature, TEMPERATURE, KEYSPACE) { (outer, r) ⇒
     s"Sensor №${outer.getLong("sensor")} - time: ${inner.getLong("event_time")} temperature: ${inner.getDouble("temperature")}"
   }
@@ -81,9 +87,14 @@ from mongo.channel.test.join.JoinMongoSpec
   }
 
   //to get akka Source
-  val Mat = ActorMaterializer(ActorMaterializerSettings(system).withDispatcher("akka.join-dispatcher"))  
-  implicit val Attributes = -\/(system)
-  
+  val dName = "akka.join-dispatcher"
+  val settings = ActorMaterializerSettings(system)
+      .withInputBuffer(32, 64)
+      .withDispatcher(dName)
+      .withSupervisionStrategy(decider)
+  implicit val Mat = ActorMaterializer(settings)
+  implicit val dispatcher = system.dispatchers.lookup(dName)
+    
   val joinQuery = Join[MongoAkkaStream].join(qSensors, SENSORS, qTemperature, TEMPERATURE, KEYSPACE) { (outer, inner) ⇒
     s"Sensor №${outer.getLong("sensor")} - time: ${inner.getLong("event_time")} temperature: ${inner.getDouble("temperature")}"
   }
