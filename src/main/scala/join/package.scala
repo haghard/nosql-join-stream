@@ -107,7 +107,8 @@ package object join {
     }
 
     implicit object CassandraO extends Joiner[CassandraObservable] {
-      override def join[A, B, C](outer: CassandraObservable#Stream[A])(relation: (A) ⇒ CassandraObservable#Stream[B])(mapper: (A, B) ⇒ C)
+      override def join[A, B, C](outer: CassandraObservable#Stream[A])(relation: (A) ⇒ CassandraObservable#Stream[B])
+                                (mapper: (A, B) ⇒ C)
                                 (implicit ctx: CassandraObservable#Context): CassandraObservable#Stream[C] =
         for { id ← outer; rs ← relation(id).map(mapper(id, _))  } yield rs
     }
