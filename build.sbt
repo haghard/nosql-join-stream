@@ -8,7 +8,7 @@ organization := "com.haghard"
 
 name := "nosql-join-stream"
 
-version := "0.0.4-snapshot"
+version := "0.0.4"
 
 scalaVersion := "2.11.7"
 
@@ -108,7 +108,7 @@ licenses += ("Apache-2.0", url("http://www.apache.org/licenses/"))
 
 bintrayOrganization in bintray := Some("haghard")
 
-repository in bintray := "snapshots" //"releases"
+repository in bintray := "releases" //"snapshots"
 
 publishMavenStyle := true
 //publishTo := Some(Resolver.file("file",  new File(localMvnRepo)))
