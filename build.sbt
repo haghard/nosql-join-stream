@@ -2,6 +2,7 @@ import com.typesafe.sbt.SbtGit.git
 import com.typesafe.sbt.SbtScalariform.ScalariformKeys
 import scalariform.formatter.preferences._
 import bintray.Keys._
+import com.scalapenos.sbt.prompt.SbtPrompt.autoImport._
 
 organization := "com.haghard"
 
@@ -17,7 +18,14 @@ logBuffered in Test := false
 
 initialCommands in console in Test := "import org.specs2._"
 
-shellPrompt := { state => System.getProperty("user.name") + "> " }
+//useJGit
+//enablePlugins(GitVersioning)
+//shellPrompt := { state => System.getProperty("user.name") + "> " }
+//showCurrentGitBranch
+//versionWithGit
+//git.baseVersion := "master"
+
+promptTheme := ScalapenosTheme
 
 scalacOptions ++= Seq(
   "-feature",
@@ -31,8 +39,6 @@ scalacOptions ++= Seq(
   "-target:jvm-1.8"
 )
 
-useJGit
-enablePlugins(GitVersioning)
 
 val MongoDriverVersion = "3.0.2"
 val CassandraDriverVersion = "2.1.7"
@@ -53,9 +59,6 @@ ScalariformKeys.preferences := ScalariformKeys.preferences.value
 
 net.virtualvoid.sbt.graph.Plugin.graphSettings
 
-showCurrentGitBranch
-versionWithGit
-git.baseVersion := "master"
 
 resolvers ++= Seq(
   "Local Maven Repository" at "file:///" + localMvnRepo,

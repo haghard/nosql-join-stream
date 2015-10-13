@@ -13,4 +13,4 @@ addSbtPlugin("net.virtual-void" % "sbt-dependency-graph" % "0.7.5")
 
 addSbtPlugin("de.heikoseeberger" % "sbt-header" % "1.1.1")
 
-addSbtPlugin("com.typesafe.sbt" % "sbt-git" % "0.8.4")
+addSbtPlugin("com.scalapenos" % "sbt-prompt" % "0.2.1")
