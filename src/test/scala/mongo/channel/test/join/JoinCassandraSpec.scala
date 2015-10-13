@@ -60,7 +60,7 @@ class JoinCassandraSpec extends WordSpecLike with Matchers with TemperatureEnvir
 
       implicit val client = Cluster.builder().addContactPointsWithPorts(cassandraHost).build
 
-      val joinQuery = Join[CassandraProcess].join(qSensors, SENSORS, qTemperature, TEMPERATURE, KEYSPACE)(cmb)
+      val joinQuery = Join[CassandraProcess].left(qSensors, SENSORS, qTemperature, TEMPERATURE, KEYSPACE)(cmb)
 
       (for {
         row ← P.eval(Task.now(client)) through joinQuery.out
@@ -91,7 +91,7 @@ class JoinCassandraSpec extends WordSpecLike with Matchers with TemperatureEnvir
       val state = new AtomicReference(Vector.empty[String])
 
       val joinQuery =
-        Join[CassandraObservable].join(qSensors, SENSORS, qTemperature, TEMPERATURE, KEYSPACE)(cmb)
+        Join[CassandraObservable].left(qSensors, SENSORS, qTemperature, TEMPERATURE, KEYSPACE)(cmb)
 
       val S = new Subscriber[String] {
         override def onStart() = request(pageSize)
@@ -136,7 +136,7 @@ class JoinCassandraSpec extends WordSpecLike with Matchers with TemperatureEnvir
       implicit val client = Cluster.builder().addContactPointsWithPorts(cassandraHost).build
 
       val joinQuery =
-        Join[CassandraObsCursorError].join(qSensors, SENSORS, qTemperature, TEMPERATURE, KEYSPACE)(cmb)
+        Join[CassandraObsCursorError].left(qSensors, SENSORS, qTemperature, TEMPERATURE, KEYSPACE)(cmb)
 
       val S = new Subscriber[String] {
         override def onStart() = request(1)
@@ -171,7 +171,7 @@ class JoinCassandraSpec extends WordSpecLike with Matchers with TemperatureEnvir
       implicit val client = Cluster.builder().addContactPointsWithPorts(cassandraHost).build
 
       val joinQuery =
-        Join[CassandraObsFetchError].join(qSensors, SENSORS, qTemperature, TEMPERATURE, KEYSPACE)(cmb)
+        Join[CassandraObsFetchError].left(qSensors, SENSORS, qTemperature, TEMPERATURE, KEYSPACE)(cmb)
 
       val S = new Subscriber[String] {
         override def onStart() = request(1)

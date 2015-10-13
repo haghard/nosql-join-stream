@@ -66,7 +66,7 @@ class AkkaJoinCassandraSpec extends TestKit(ActorSystem("akka-join-stream")) wit
       implicit val client = Cluster.builder().addContactPointsWithPorts(cassandraHost).build
 
       val joinSource =
-        Join[CassandraSource].join(qSensors, SENSORS, qTemperature, TEMPERATURE, KEYSPACE)(cmb)
+        Join[CassandraSource].left(qSensors, SENSORS, qTemperature, TEMPERATURE, KEYSPACE)(cmb)
 
       val future = joinSource.source
         .runFold(List.empty[String]) { (acc, cur) ⇒ cur :: acc }

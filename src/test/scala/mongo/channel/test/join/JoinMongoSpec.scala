@@ -59,7 +59,7 @@ class JoinMongoSpec extends Specification with ScalaFutures {
     val SinkBuffer = io.fillBuffer(buffer)
     implicit val c = client
 
-    val joinQuery = Join[Module].join(qLang, LANGS, qProg(_), PROGRAMMERS, TEST_DB)(cmd)
+    val joinQuery = Join[Module].left(qLang, LANGS, qProg(_), PROGRAMMERS, TEST_DB)(cmd)
 
     val p = for {
       joinLine ← eval(Task.now(client)) through joinQuery.out
@@ -86,7 +86,7 @@ class JoinMongoSpec extends Specification with ScalaFutures {
     val res = responses
     implicit val c = client
 
-    val query = Join[Module].join(qLang, LANGS, qProg(_), PROGRAMMERS, TEST_DB)(cmb)
+    val query = Join[Module].left(qLang, LANGS, qProg(_), PROGRAMMERS, TEST_DB)(cmb)
 
     val S = new Subscriber[String] {
       override def onStart() = request(pageSize)
@@ -134,7 +134,7 @@ class JoinMongoSpec extends Specification with ScalaFutures {
     val res = responses
     implicit val c = client
 
-    val query = Join[Module].join(qLang, LANGS, qProg(_), PROGRAMMERS, TEST_DB)(cmd)
+    val query = Join[Module].left(qLang, LANGS, qProg(_), PROGRAMMERS, TEST_DB)(cmd)
 
     val S = new Subscriber[String] {
       override def onStart() = request(pageSize)
@@ -178,7 +178,7 @@ class JoinMongoSpec extends Specification with ScalaFutures {
     val res = responses
     implicit val c = client
 
-    val query = Join[Module].join(qLang, LANGS, qProg(_), PROGRAMMERS, TEST_DB)(cmd)
+    val query = Join[Module].left(qLang, LANGS, qProg(_), PROGRAMMERS, TEST_DB)(cmd)
 
     val S = new Subscriber[String] {
       override def onStart() = request(pageSize)

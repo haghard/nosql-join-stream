@@ -65,7 +65,7 @@ class AkkaJoinMongoSpec extends TestKit(ActorSystem("akka-join-stream")) with Wo
     val resRef = new AtomicReference(List.empty[String])
     implicit val c = client
 
-    val joinSource = Join[MongoSource].join(qLang, LANGS, qProg(_), PROGRAMMERS, TEST_DB)(cmb)
+    val joinSource = Join[MongoSource].left(qLang, LANGS, qProg(_), PROGRAMMERS, TEST_DB)(cmb)
 
     val futureSeq = joinSource.source
       .runFold(List.empty[String]) { (acc, cur) ⇒ cur :: acc }

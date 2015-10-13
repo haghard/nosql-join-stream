@@ -51,7 +51,7 @@ package object join {
   case class Join[M <: StorageModule : Joiner : Storage](implicit ctx: M#Context, client: M#Client, t: ClassTag[M]) {
     implicit val logger = org.slf4j.LoggerFactory.getLogger(s"${t.runtimeClass.getName.dropWhile(_ != '$').drop(1)}-producer-join")
 
-    def join[A](outerQ: QFree[M#QueryAttributes], outerColl: String,
+    def left[A](outerQ: QFree[M#QueryAttributes], outerColl: String,
                 innerQ: M#Record ⇒ QFree[M#QueryAttributes], innerColl: String, resource: String)
                 (mapper: (M#Record, M#Record) ⇒ A): M#Stream[A] = {
       val storage = Storage[M]
