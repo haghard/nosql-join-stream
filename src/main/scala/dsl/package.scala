@@ -82,8 +82,12 @@ package object dsl {
 
     case class CassandraSelect(q: String) extends StatementOp[CassandraReadSettings]
     case class CassandraParam(name: String, v: AnyRef, c: Class[_]) extends StatementOp[CassandraReadSettings]
-    case class CassandraReadConsistencyLevel(cl: com.datastax.driver.core.ConsistencyLevel) extends StatementOp[CassandraReadSettings]
 
+    /**
+     *
+     * @param q
+     * @return
+     */
     def select(q: String): QFree[CassandraReadSettings] = liftFC(CassandraSelect(q))
 
     /**
@@ -92,8 +96,6 @@ package object dsl {
     def fk[T <: AnyRef](name: String, v: T)(implicit t: ClassTag[T]): QFree[CassandraReadSettings] =
       liftFC(CassandraParam(name, v, t.runtimeClass))
 
-    def readConsistency(cl: com.datastax.driver.core.ConsistencyLevel): QFree[CassandraReadSettings] =
-      liftFC(CassandraReadConsistencyLevel(cl))
 
     object CassandraQueryInterpreter extends (StatementOp ~> QueryC) {
       override def apply[A](fa: StatementOp[A]): QueryC[A] = fa match {
@@ -101,8 +103,6 @@ package object dsl {
           scalaz.State { (in: CassandraReadSettings) ⇒ (in.copy(select), in) }
         case CassandraParam(name, v, c) ⇒
           scalaz.State { (in: CassandraReadSettings) ⇒ (in.copy(v = Some(CassandraParamValue(name, v, c))), in) }
-        case CassandraReadConsistencyLevel(rcl) ⇒
-          scalaz.State { (in: CassandraReadSettings) ⇒ (in.copy(consistencyLevel = rcl), in) }
       }
     }
   }

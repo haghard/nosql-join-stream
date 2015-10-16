@@ -269,13 +269,14 @@ package object storage {
   object DbIterator {
 
     case class CassandraIterator(settings: QFree[CassandraSource#QueryAttributes], client: CassandraSource#Client,
-                                 resource: String, collection: String, logger: Logger) extends DbIterator[CassandraSource] {
+                                 resource: String, collection: String,
+                                 logger: Logger) extends DbIterator[CassandraSource] {
       override val attributes = implicitly[QueryInterpreter[CassandraProcess]].interpret(settings)
       override val cursor = {
         val queryStr = MessageFormat.format(attributes.query, collection)
         val session = client.connect(resource)
-        attributes.v.fold(session.execute(session.prepare(queryStr).setConsistencyLevel(attributes.consistencyLevel).bind()).iterator()) { r ⇒
-          session.execute(session.prepare(queryStr).setConsistencyLevel(attributes.consistencyLevel).bind(r.v)).iterator()
+        attributes.v.fold(session.execute(queryStr).iterator()) { r ⇒
+          session.execute(queryStr, r.v).iterator()
         }
       }
     }
@@ -299,8 +300,9 @@ package object storage {
       MongoIterator(settings, client, resource, collection, logger)
 
     def cassandra(settings: QFree[CassandraSource#QueryAttributes], client: CassandraSource#Client,
-                  resource: String, collection: String, logger: Logger) =
+                  resource: String, collection: String, logger: Logger) = {
       CassandraIterator(settings, client, resource, collection, logger)
+    }
   }
 
   @implicitNotFound(msg = "Cannot find Storage type class for ${T}")

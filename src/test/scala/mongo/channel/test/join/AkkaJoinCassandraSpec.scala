@@ -23,7 +23,7 @@ import akka.actor.ActorSystem
 import join.cassandra.CassandraSource
 import mongo.channel.test.cassandra.TemperatureEnviroment
 import akka.stream.{ Supervision, ActorMaterializerSettings, ActorMaterializer }
-import com.datastax.driver.core.{ Cluster, ConsistencyLevel, Row ⇒ CRow }
+import com.datastax.driver.core.{ Row ⇒ CRow, QueryOptions, Cluster, ConsistencyLevel }
 import org.scalatest.{ BeforeAndAfterAll, BeforeAndAfterEach, MustMatchers, WordSpecLike }
 import scala.util.{ Failure, Success }
 
@@ -39,8 +39,7 @@ class AkkaJoinCassandraSpec extends TestKit(ActorSystem("akka-join-stream")) wit
 
   def qTemperature(r: CRow) = for {
     _ ← select("SELECT sensor, event_time, temperature FROM {0} WHERE sensor = ?")
-    _ ← fk[java.lang.Long]("sensor", r.getLong("sensor"))
-    q ← readConsistency(ConsistencyLevel.ONE)
+    q ← fk[java.lang.Long]("sensor", r.getLong("sensor"))
   } yield q
 
   def cmb: (CassandraSource#Record, CassandraSource#Record) ⇒ String =
@@ -63,10 +62,14 @@ class AkkaJoinCassandraSpec extends TestKit(ActorSystem("akka-join-stream")) wit
     "perform join" in {
       val latch = new CountDownLatch(1)
       val resRef = new AtomicReference(List[String]())
-      implicit val client = Cluster.builder().addContactPointsWithPorts(cassandraHost).build
 
-      val joinSource =
-        Join[CassandraSource].left(qSensors, SENSORS, qTemperature, TEMPERATURE, KEYSPACE)(cmb)
+      val qs = new QueryOptions()
+        .setConsistencyLevel(ConsistencyLevel.ONE)
+        .setFetchSize(500)
+
+      implicit val client = Cluster.builder().addContactPointsWithPorts(cassandraHost).withQueryOptions(qs).build
+
+      val joinSource = (Join[CassandraSource]./:(qSensors, SENSORS, qTemperature, TEMPERATURE, KEYSPACE))(cmb)
 
       val future = joinSource.source
         .runFold(List.empty[String]) { (acc, cur) ⇒ cur :: acc }

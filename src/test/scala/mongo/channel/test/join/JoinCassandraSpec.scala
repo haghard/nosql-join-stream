@@ -34,18 +34,13 @@ class JoinCassandraSpec extends WordSpecLike with Matchers with TemperatureEnvir
   import dsl.cassandra._
 
   val selectSensor = "SELECT sensor FROM {0}"
-  val qSensors = for { q ← select(selectSensor) } yield {
-    q
-  }
+  val qSensors = for { q ← select(selectSensor) } yield q
   val RxExecutor = ExecutionContextScheduler(ExecutionContext.fromExecutor(executor))
 
   def qTemperature(r: CRow) = for {
     _ ← select("SELECT sensor, event_time, temperature FROM {0} WHERE sensor = ?")
-    _ ← fk[java.lang.Long]("sensor", r.getLong("sensor"))
-    q ← readConsistency(ConsistencyLevel.ONE)
-  } yield {
-    q
-  }
+    q ← fk[java.lang.Long]("sensor", r.getLong("sensor"))
+  } yield q
 
   def cmb: (CassandraObservable#Record, CassandraObservable#Record) ⇒ String =
     (outer, inner) ⇒
