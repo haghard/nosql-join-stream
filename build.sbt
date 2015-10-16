@@ -8,7 +8,7 @@ organization := "com.haghard"
 
 name := "nosql-join-stream"
 
-version := "0.0.5"
+version := "0.1"
 
 scalaVersion := "2.11.7"
 
