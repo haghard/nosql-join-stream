@@ -81,7 +81,7 @@ from mongo.channel.test.join.JoinMongoSpec
   }
 
   //to get Observable
-  val query = (Join[MongoObservable] left(qLang, LANGS, qProg(_), PROGRAMMERS, TEST_DB)) { (outer, inner) ⇒
+  val query = (Join[MongoObservable] left (qLang, LANGS, qProg(_), PROGRAMMERS, TEST_DB)) { (outer, inner) ⇒
     s"PK:${outer.get("index")} - [FK:${inner.get("lang")} - ${inner.get("name")}]"
   }
 
@@ -94,7 +94,7 @@ from mongo.channel.test.join.JoinMongoSpec
   implicit val Mat = ActorMaterializer(settings)
   implicit val dispatcher = system.dispatchers.lookup(dName)
     
-  val joinQuery = Join[MongoAkkaStream].join(qSensors, SENSORS, qTemperature, TEMPERATURE, KEYSPACE) { (outer, inner) ⇒
+  val joinQuery = (Join[MongoAkkaStream] left (qSensors, SENSORS, qTemperature, TEMPERATURE, KEYSPACE)) { (outer, inner) ⇒
     s"Sensor №${outer.getLong("sensor")} - time: ${inner.getLong("event_time")} temperature: ${inner.getDouble("temperature")}"
   }
   
