@@ -19,7 +19,7 @@ Where to get it
 ```
 resolvers += "haghard-bintray"  at "http://dl.bintray.com/haghard/releases"
 
-libraryDependencies +=  "com.haghard"  %% "nosql-join-stream" % "0.0.4"
+libraryDependencies +=  "com.haghard"  %% "nosql-join-stream" % "0.0.5"
 
 ```
 
@@ -35,8 +35,7 @@ from mongo.channel.test.join.JoinCassandraSpec
 
   def qTemperature(r: CRow) = for {
     _ ← select("SELECT sensor, event_time, temperature FROM {0} WHERE sensor = ?")
-    _ ← fk[java.lang.Long]("sensor", r.getLong("sensor"))
-    q ← readConsistency(ConsistencyLevel.ONE)
+    q ← fk[java.lang.Long]("sensor", r.getLong("sensor"))    
   } yield q
   
   //to get Process
