@@ -43,7 +43,7 @@ package object dsl {
 
     implicit def f2FreeM(q: _root_.mongo.EqQueryFragment): QFree[MongoReadSettings] = liftFC(EqOp(q.q))
 
-    implicit def c2FreeM(q: _root_.mongo.ComposableQueryFragment): QFree[MongoReadSettings] = liftFC(ChainOp(q.q))
+    implicit def c2FreeM(q: _root_.mongo.StatefullQuery): QFree[MongoReadSettings] = liftFC(ChainOp(q.q))
 
     implicit def sort2FreeM(kv: (String, _root_.mongo.Order.Value)): QFree[MongoReadSettings] = liftFC(Sort(new BasicDBObject(kv._1, kv._2.id)))
 

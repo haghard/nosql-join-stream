@@ -67,7 +67,7 @@ package object mongo {
     val One, Batch = Value
   }
 
-  trait QueryDsl extends scalaz.syntax.Ops[ComposableQueryFragment] {
+  trait QueryDsl extends scalaz.syntax.Ops[StatefullQuery] {
 
     def field: String
 
@@ -79,54 +79,54 @@ package object mongo {
     private def update[T](v: java.lang.Iterable[T], op: String) =
       Option(nested.fold(new BasicDBObject(op, v))(_.append(op, v)))
 
-    def $eq[T: Values](v: T) = EqQueryFragment(new BasicDBObject(field, v))
-    def $gt[T: Values](v: T) = self.copy(field, update(v, "$gt"))
-    def $gte[T: Values](v: T) = self.copy(field, update(v, "$gte"))
-    def $lt[T: Values](v: T) = self.copy(field, update(v, "$lt"))
-    def $lte[T: Values](v: T) = self.copy(field, update(v, "$lte"))
-    def $ne[T: Values](v: T) = self.copy(field, update(v, "$ne"))
-    def $in[T: Values](vs: Iterable[T]) = self.copy(field, update(asJavaIterable(vs), "$in"))
-    def $all[T: Values](vs: Iterable[T]) = self.copy(field, update(asJavaIterable(vs), "$all"))
-    def $nin[T: Values](vs: Iterable[T]) = self.copy(field, update(asJavaIterable(vs), "$nin"))
+    def $eq[T: Types](v: T) = EqQueryFragment(new BasicDBObject(field, v))
+    def $gt[T: Types](v: T) = self.copy(field, update(v, "$gt"))
+    def $gte[T: Types](v: T) = self.copy(field, update(v, "$gte"))
+    def $lt[T: Types](v: T) = self.copy(field, update(v, "$lt"))
+    def $lte[T: Types](v: T) = self.copy(field, update(v, "$lte"))
+    def $ne[T: Types](v: T) = self.copy(field, update(v, "$ne"))
+    def $in[T: Types](vs: Iterable[T]) = self.copy(field, update(asJavaIterable(vs), "$in"))
+    def $all[T: Types](vs: Iterable[T]) = self.copy(field, update(asJavaIterable(vs), "$all"))
+    def $nin[T: Types](vs: Iterable[T]) = self.copy(field, update(asJavaIterable(vs), "$nin"))
   }
 
   case class EqQueryFragment(override val q: BasicDBObject) extends QueryBuilder
 
-  case class ComposableQueryFragment(val field: String, val nested: Option[BasicDBObject]) extends QueryDsl with QueryBuilder {
+  case class StatefullQuery(val field: String, val nested: Option[BasicDBObject]) extends QueryDsl with QueryBuilder {
     override val self = this
     override def q = new BasicDBObject(field, nested.fold(new BasicDBObject())(x ⇒ x))
     override def toString() = q.toString
   }
 
-  case class AndQueryFragment(cs: TraversableOnce[QueryBuilder]) extends QueryBuilder {
-    override def q = new BasicDBObject("$and", cs.foldLeft(new java.util.ArrayList[DBObject]()) { (arr, c) ⇒
-      arr.add(c.q)
+  case class ConjunctionQuery(cs: TraversableOnce[QueryBuilder]) extends QueryBuilder {
+    override def q = new BasicDBObject("$and", cs./:(new java.util.ArrayList[DBObject]()) { (arr, c) ⇒
+      (arr add c.q)
       arr
     })
     override def toString() = q.toString
   }
 
-  case class OrQueryFragment(cs: TraversableOnce[QueryBuilder]) extends QueryBuilder {
-    override def q = new BasicDBObject("$or", cs.foldLeft(new java.util.ArrayList[DBObject]()) { (arr, c) ⇒
-      arr.add(c.q)
+  case class DisjunctionQuery(cs: TraversableOnce[QueryBuilder]) extends QueryBuilder {
+    override def q = new BasicDBObject("$or", cs./:(new java.util.ArrayList[DBObject]()) { (arr, c) ⇒
+      (arr add c.q)
       arr
     })
     override def toString() = q.toString
   }
 
-  implicit def f2b(f: String) = ComposableQueryFragment(f, None)
+  implicit def f2b(field: String) = StatefullQuery(field, None)
 
-  def &&(bs: QueryBuilder*) = AndQueryFragment(bs)
-  def ||(bs: QueryBuilder*) = OrQueryFragment(bs)
+  def &&(bs: QueryBuilder*) = ConjunctionQuery(bs)
+  def ||(bs: QueryBuilder*) = DisjunctionQuery(bs)
 
-  //Supported values
-  sealed trait Values[T]
-  implicit val intV = new Values[Int] {}
-  implicit val longV = new Values[Long] {}
-  implicit val doubleV = new Values[Double] {}
-  implicit val stringV = new Values[String] {}
-  implicit val booleanV = new Values[Boolean] {}
-  implicit val dateV = new Values[Date] {}
+  //Supported types
+  sealed trait Types[T]
+  implicit val intV = new Types[Int] {}
+  implicit val longV = new Types[Long] {}
+  implicit val doubleV = new Types[Double] {}
+  implicit val stringV = new Types[String] {}
+  implicit val booleanV = new Types[Boolean] {}
+  implicit val dateV = new Types[Date] {}
 
   trait MqlExpression
 

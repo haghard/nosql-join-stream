@@ -37,9 +37,11 @@ class JoinMongoSpec extends Specification with ScalaFutures {
 
   val pageSize = 7
 
-  val qLang = for { q ← "index" $gte 0 $lte 5 } yield {
-    q
-  }
+  val qLang = for {
+    _ ← "index" $gte 0 $lte 5
+    _ ← sort("index" -> Order.Ascending)
+    q ← limit(6)
+  } yield q
 
   def count = new CountDownLatch(1)
   def responses = new AtomicLong(0)
