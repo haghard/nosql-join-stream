@@ -61,14 +61,16 @@ class JoinMongoSpec extends Specification with ScalaFutures {
     val SinkBuffer = io.fillBuffer(buffer)
     implicit val c = client
 
-    val joinQuery = Join[Module].left(qLang, LANGS, qProg(_), PROGRAMMERS, TEST_DB)(cmd)
+    val join = (Join[Module] left (qLang, LANGS, qProg(_), PROGRAMMERS, TEST_DB))(cmd)
 
-    val p = for {
-      joinLine ← eval(Task.now(client)) through joinQuery.out
+    (for {
+      joinLine ← eval(Task.now(client.getDB(TEST_DB))) through join.out
       _ ← joinLine to SinkBuffer
-    } yield ()
+    } yield ())
+      .onFailure { ex ⇒ logger.debug(s"MongoProcess has been completed with error: ${ex.getMessage}"); halt }
+      .onComplete(eval_(Task.delay { c.close }))
+      .runLog.run
 
-    p.runLog.run
     buffer.size === MongoIntegrationEnv.programmersSize
   }
 
@@ -77,8 +79,7 @@ class JoinMongoSpec extends Specification with ScalaFutures {
 
     type Module = MongoObservable
 
-    def qProg(outer: Module#Record) =
-      for { q ← "lang" $eq outer.get("index").asInstanceOf[Int] } yield q
+    def qProg(outer: Module#Record) = for { q ← "lang" $eq outer.get("index").asInstanceOf[Int] } yield q
 
     val cmb: (Module#Record, Module#Record) ⇒ String =
       (outer, inner) ⇒
@@ -88,28 +89,29 @@ class JoinMongoSpec extends Specification with ScalaFutures {
     val res = responses
     implicit val c = client
 
-    val query = Join[Module].left(qLang, LANGS, qProg(_), PROGRAMMERS, TEST_DB)(cmb)
+    val join = (Join[Module] left (qLang, LANGS, qProg(_), PROGRAMMERS, TEST_DB))(cmb)
 
     val S = new Subscriber[String] {
       override def onStart() = request(pageSize)
       override def onNext(n: String) = {
         logger.info(s"onNext: $n")
-        if (res.getAndIncrement() % pageSize == 0) {
+        if (res.getAndIncrement % pageSize == 0) {
           logger.info(s"★ ★ ★ Fetched page:[$pageSize] ★ ★ ★ ")
           request(pageSize)
         }
       }
       override def onError(e: Throwable) = {
-        logger.info(s"★ ★ ★  MongoObservable has been completed with error: ${e.getMessage}")
+        logger.info(s"★ ★ ★ MongoObservable has been completed with error: ${e.getMessage}")
         c0.countDown()
       }
       override def onCompleted() = {
-        logger.info("★ ★ ★   MongoObservable has been completed")
+        logger.info("★ ★ ★  MongoObservable has been completed")
         c0.countDown()
+        c.close()
       }
     }
 
-    query
+    join
       .observeOn(ExecutionContextScheduler(ExecutionContext.fromExecutor(executor)))
       .subscribe(S)
 
@@ -123,10 +125,7 @@ class JoinMongoSpec extends Specification with ScalaFutures {
 
     val qLang = for { q ← "index" $gte 0 $lte 5 } yield q
 
-    def qProg(outer: Module#Record) =
-      for { q ← "lang" $eq outer.get("index").asInstanceOf[Int] } yield {
-        q
-      }
+    def qProg(outer: Module#Record) = for { q ← "lang" $eq outer.get("index").asInstanceOf[Int] } yield q
 
     val cmd: (Module#Record, Module#Record) ⇒ String =
       (outer, inner) ⇒
@@ -136,7 +135,7 @@ class JoinMongoSpec extends Specification with ScalaFutures {
     val res = responses
     implicit val c = client
 
-    val query = Join[Module].left(qLang, LANGS, qProg(_), PROGRAMMERS, TEST_DB)(cmd)
+    val join = (Join[Module] left (qLang, LANGS, qProg(_), PROGRAMMERS, TEST_DB))(cmd)
 
     val S = new Subscriber[String] {
       override def onStart() = request(pageSize)
@@ -151,13 +150,16 @@ class JoinMongoSpec extends Specification with ScalaFutures {
       override def onError(e: Throwable) = {
         logger.info(s"★ ★ ★  MongoObsCursorError has been completed with error: ${e.getMessage}")
         c0.countDown()
+        c.close()
       }
 
-      override def onCompleted() =
+      override def onCompleted() = {
+        c.close()
         logger.info("★ ★ ★  MongoObsCursorError has been completed")
+      }
     }
 
-    query
+    join
       .observeOn(ExecutionContextScheduler(ExecutionContext.fromExecutor(executor)))
       .subscribe(S)
 
@@ -180,7 +182,7 @@ class JoinMongoSpec extends Specification with ScalaFutures {
     val res = responses
     implicit val c = client
 
-    val query = Join[Module].left(qLang, LANGS, qProg(_), PROGRAMMERS, TEST_DB)(cmd)
+    val query = (Join[Module] left (qLang, LANGS, qProg(_), PROGRAMMERS, TEST_DB))(cmd)
 
     val S = new Subscriber[String] {
       override def onStart() = request(pageSize)
@@ -194,10 +196,12 @@ class JoinMongoSpec extends Specification with ScalaFutures {
       override def onError(e: Throwable) = {
         logger.info(s"★ ★ ★  MongoObsFetchError has been completed with error: ${e.getMessage}")
         c0.countDown()
+        c.close()
       }
 
       override def onCompleted() =
-        logger.info("★ ★ ★  MongoObsFetchError has been completed")
+        c.close()
+      logger.info("★ ★ ★  MongoObsFetchError has been completed")
     }
 
     query

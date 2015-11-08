@@ -15,7 +15,7 @@
 package mongo
 
 import java.util.concurrent.{ ExecutorService, TimeUnit }
-import com.mongodb.{ DBObject, MongoClient, MongoException }
+import com.mongodb.{ DB, DBObject, MongoClient, MongoException }
 import scala.util.{ Failure, Success, Try }
 import scalaz.Scalaz._
 import scalaz.concurrent.{ Strategy, Task }
@@ -26,14 +26,13 @@ import scalaz.{ -\/, \/, \/- }
 import akka.stream.scaladsl.{ Source ⇒ AkkaSource }
 
 package object channel {
-
   private type ResponseChannel[T, A] = Channel[Task, T, Process[Task, A]]
 
   case class QuerySetting(q: DBObject, db: String, cName: String, sortQuery: Option[DBObject],
                           limit: Option[Int], skip: Option[Int], maxTimeMS: Option[Long],
                           readPref: Option[ReadPreference])
 
-  trait DBChannelFactory[T] {
+  trait ChannelBuilder[T] {
     def createChannel(arg: String \/ QuerySetting)(implicit pool: ExecutorService): ScalazChannel[T, com.mongodb.DBObject]
   }
 
@@ -42,14 +41,10 @@ package object channel {
       AkkaChannel[B, U] { source map f }
 
     def flatMap[B](f: A ⇒ AkkaChannel[B, U]): AkkaChannel[B, U] =
-      AkkaChannel {
-        source.map(in ⇒ f(in).source)
-          .flatten(akka.stream.scaladsl.FlattenStrategy.concat[B])
-      }
+      AkkaChannel(source.map(in ⇒ f(in).source).flatMapConcat(identity))
   }
 
   case class ScalazChannel[T, A](out: ResponseChannel[T, A]) {
-
     private def liftP[B](f: Process[Task, A] ⇒ Process[Task, B]): ScalazChannel[T, B] =
       ScalazChannel(out.map(step ⇒ step.andThen(task ⇒ task.map(p ⇒ f(p)))))
 
@@ -237,7 +232,7 @@ package object channel {
     def build(): String \/ QuerySetting
   }
 
-  def create[T](f: MutableBuilder ⇒ Unit)(implicit pool: ExecutorService, q: DBChannelFactory[T]): ScalazChannel[T, DBObject] = {
+  def create[T](f: MutableBuilder ⇒ Unit)(implicit pool: ExecutorService, b: ChannelBuilder[T]): ScalazChannel[T, DBObject] = {
     val builder = new MutableBuilder {
       override def build(): String \/ QuerySetting =
         for {
@@ -249,15 +244,46 @@ package object channel {
         } yield QuerySetting(q, db, c, s, limit, skip, maxTimeMS, readPreference)
     }
     f(builder)
-    q createChannel builder.build
+    b createChannel builder.build
   }
 
-  implicit object defaultChannel extends DBChannelFactory[MongoClient] {
+  implicit object mongoDBChannel extends ChannelBuilder[DB] {
+    val logger = org.slf4j.LoggerFactory.getLogger("mongo-cursor")
+    override def createChannel(arg: String \/ QuerySetting)(implicit ES: ExecutorService): ScalazChannel[DB, DBObject] =
+      arg.fold({ error ⇒ ScalazChannel(eval(Task.fail(new MongoException(error)))) }, { setting ⇒
+        ScalazChannel(eval(Task.now { db: DB ⇒
+          Task {
+            scalaz.stream.io.resource(
+              Task delay {
+                val collection = db.getCollection(setting.cName)
+                val cursor = collection.find(setting.q)
+                scalaz.syntax.id.ToIdOpsDeprecated(cursor) |> { c ⇒
+                  setting.readPref.fold(c)(p ⇒ c.setReadPreference(p.asMongoDbReadPreference))
+                  setting.sortQuery.foreach(c.sort)
+                  setting.skip.foreach(c.skip)
+                  setting.limit.foreach(c.limit)
+                  setting.maxTimeMS.foreach(c.maxTime(_, TimeUnit.MILLISECONDS))
+                }
+                logger.debug(s"query:[${setting.q}] ReadPrefs:[${cursor.getReadPreference}}] Server:[${cursor.getServerAddress}] Sort:[${setting.sortQuery}] Limit:[${setting.limit}] Skip:[${setting.skip}]")
+                cursor
+              })(c ⇒ Task.delay(c.close())) { c ⇒
+                Task.delay {
+                  if (c.hasNext) c.next
+                  else throw Cause.Terminated(Cause.End)
+                }
+              }
+          }(ES)
+        })
+        )
+      })
+  }
+
+  implicit object mongoClientChannel extends ChannelBuilder[MongoClient] {
+    val logger = org.slf4j.LoggerFactory.getLogger("mongo-cursor")
     override def createChannel(arg: String \/ QuerySetting)(implicit ES: ExecutorService): ScalazChannel[MongoClient, DBObject] =
       arg.fold({ error ⇒ ScalazChannel(eval(Task.fail(new MongoException(error)))) }, { setting ⇒
         ScalazChannel(eval(Task.now { client: MongoClient ⇒
           Task {
-            val logger = org.slf4j.LoggerFactory.getLogger("mongo-streamer")
             scalaz.stream.io.resource(
               Task delay {
                 val collection = client.getDB(setting.db).getCollection(setting.cName)
@@ -269,7 +295,7 @@ package object channel {
                   setting.limit.foreach(c.limit)
                   setting.maxTimeMS.foreach(c.maxTime(_, TimeUnit.MILLISECONDS))
                 }
-                logger.debug(s"Query:[${setting.q}] ReadPrefs:[${cursor.getReadPreference}}] Server:[${cursor.getServerAddress}] Sort:[${setting.sortQuery}] Limit:[${setting.limit}] Skip:[${setting.skip}]")
+                logger.debug(s"query:[${setting.q}] ReadPrefs:[${cursor.getReadPreference}}] Server:[${cursor.getServerAddress}] Sort:[${setting.sortQuery}] Limit:[${setting.limit}] Skip:[${setting.skip}]")
                 cursor
               })(c ⇒ Task.delay(c.close())) { c ⇒
                 Task.delay {

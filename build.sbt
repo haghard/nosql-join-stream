@@ -8,7 +8,7 @@ organization := "com.haghard"
 
 name := "nosql-join-stream"
 
-version := "0.1"
+version := "0.1.1"
 
 scalaVersion := "2.11.7"
 
@@ -44,7 +44,7 @@ val MongoDriverVersion = "3.0.2"
 val CassandraDriverVersion = "2.1.7"
 val ScalazStreamVersion = "0.8"
 val RxScala = "0.25.0"
-val AkkaStreams = "1.0"
+val AkkaStreams = "2.0-M1"
 val Akka = "2.4.0"
 val Logback = "1.1.2"
 
@@ -70,6 +70,7 @@ libraryDependencies ++= Seq(
     "com.datastax.cassandra" %   "cassandra-driver-core"    %   CassandraDriverVersion withSources(),
     "org.scalaz.stream"      %%  "scalaz-stream"            %   ScalazStreamVersion    withSources(),
     "io.reactivex"           %%  "rxscala"                  %   RxScala                withSources(),
+    "com.google.protobuf"    %   "protobuf-java"            %  "2.5.0"                 withSources(),
     "com.typesafe.akka"      %%  "akka-stream-experimental" %   AkkaStreams            withSources(),
     "ch.qos.logback"         %   "logback-classic"          %   Logback
 )
@@ -108,7 +109,7 @@ licenses += ("Apache-2.0", url("http://www.apache.org/licenses/"))
 
 bintrayOrganization in bintray := Some("haghard")
 
-repository in bintray := "releases" //"snapshot"
+repository in bintray := "snapshot" //"releases"
 
 publishMavenStyle := true
 //publishTo := Some(Resolver.file("file",  new File(localMvnRepo)))

@@ -30,6 +30,7 @@ package object join {
       def next(): Record
     }
     type Client
+    type Session
 
     type Stream[A] <: {
       def map[B](f: A ⇒ B): Stream[B]
@@ -63,8 +64,9 @@ package object join {
                 innerQ: M#Record ⇒ QFree[M#QueryAttributes], innerColl: String, resource: String)
                 (mapper: (M#Record, M#Record) ⇒ A): M#Stream[A] = {
       val storage = Storage[M]
-      val outer = storage.outer(outerQ, outerColl, resource, logger, ctx)(client)
-      val relation = storage.inner(innerQ, innerColl, resource, logger, ctx)(client)
+      val session = (storage connect(client, resource))
+      val outer = storage.outer(outerQ, outerColl, resource, logger, ctx)(session)
+      val relation = storage.inner(innerQ, innerColl, resource, logger, ctx)(session)
       Joiner[M].join[M#Record, M#Record, A](outer)(relation)(mapper)
     }
   }
@@ -80,73 +82,83 @@ package object join {
     import join.cassandra.{CassandraObservable, CassandraProcess, CassandraSource, CassandraObsFetchError, CassandraObsCursorError}
 
     implicit object MongoP extends Joiner[MongoProcess] {
-      def join[A, B, C](outer: MongoProcess#Stream[A])(relation: A ⇒ MongoProcess#Stream[B])
+      type T = MongoProcess
+      def join[A, B, C](outer: T#Stream[A])(relation: A ⇒ T#Stream[B])
                        (mapper: (A, B) ⇒ C)
-                       (implicit ctx: MongoProcess#Context): MongoProcess#Stream[C] =
+                       (implicit ctx: T#Context): T#Stream[C] =
         for { id ← outer; rs ← relation(id).map(mapper(id, _)) } yield rs
     }
 
     implicit object MongoO extends Joiner[MongoObservable] {
-      override def join[A, B, C](outer: MongoObservable#Stream[A])(relation: A ⇒ MongoObservable#Stream[B])
+      type T = MongoObservable
+      override def join[A, B, C](outer: T#Stream[A])(relation: A ⇒ T#Stream[B])
                                 (mapper: (A, B) ⇒ C)
-                                (implicit ctx: MongoObservable#Context): MongoObservable#Stream[C] =
+                                (implicit ctx: T#Context): T#Stream[C] =
         for { id ← outer; rs ← relation(id).map(mapper(id, _))  } yield rs
     }
 
     implicit object MongoOCursorError extends Joiner[MongoObsCursorError] {
-      override def join[A, B, C](outer: MongoObsCursorError#Stream[A])(relation: A ⇒ MongoObsCursorError#Stream[B])
+      type T =  MongoObsCursorError
+      override def join[A, B, C](outer: T#Stream[A])(relation: A ⇒ T#Stream[B])
                                 (mapper: (A, B) ⇒ C)
-                                (implicit ctx: MongoObsCursorError#Context): MongoObsCursorError#Stream[C] =
+                                (implicit ctx: T#Context): T#Stream[C] =
         for {id ← outer; rs ← relation(id).map(mapper(id, _))} yield rs
     }
 
     implicit object MongoOFetchError extends Joiner[MongoObsFetchError] {
-      override def join[A, B, C](outer: MongoObsFetchError#Stream[A])(relation: A ⇒ MongoObsFetchError#Stream[B])
+      type T = MongoObsFetchError
+      override def join[A, B, C](outer: T#Stream[A])(relation: A ⇒ T#Stream[B])
                                 (mapper: (A, B) ⇒ C)
-                                (implicit ctx: MongoObsFetchError#Context): MongoObsFetchError#Stream[C] =
+                                (implicit ctx: T#Context): T#Stream[C] =
         for {id ← outer; rs ← relation(id).map(mapper(id, _))} yield rs
     }
 
     implicit object CassandraP extends Joiner[CassandraProcess] {
-      override def join[A, B, C](outer: CassandraProcess#Stream[A])(relation: A ⇒ CassandraProcess#Stream[B])
+      type T = CassandraProcess
+      override def join[A, B, C](outer: T#Stream[A])(relation: A ⇒ T#Stream[B])
                                 (mapper: (A, B) ⇒ C)
-                                (implicit ctx: CassandraProcess#Context): CassandraProcess#Stream[C] =
+                                (implicit ctx: T#Context): T#Stream[C] =
         for { id ← outer; rs ← relation(id).map(mapper(id, _)) } yield rs
     }
 
     implicit object CassandraO extends Joiner[CassandraObservable] {
-      override def join[A, B, C](outer: CassandraObservable#Stream[A])(relation: (A) ⇒ CassandraObservable#Stream[B])
+      type T = CassandraObservable
+      override def join[A, B, C](outer: T#Stream[A])(relation: (A) ⇒ T#Stream[B])
                                 (mapper: (A, B) ⇒ C)
-                                (implicit ctx: CassandraObservable#Context): CassandraObservable#Stream[C] =
+                                (implicit ctx: T#Context): T#Stream[C] =
         for { id ← outer; rs ← relation(id).map(mapper(id, _))  } yield rs
     }
 
     implicit object CassandraOCursorError extends Joiner[CassandraObsCursorError] {
-      override def join[A, B, C](outer: CassandraObsCursorError#Stream[A])(relation: (A) => CassandraObsCursorError#Stream[B])
+      type T = CassandraObsCursorError
+      override def join[A, B, C](outer: T#Stream[A])(relation: (A) => T#Stream[B])
                                 (mapper: (A, B) => C)
-                                (implicit ctx: CassandraObsCursorError#Context): CassandraObsCursorError#Stream[C] =
+                                (implicit ctx: T#Context): T#Stream[C] =
         for {id ← outer; rs ← relation(id).map(mapper(id, _))} yield rs
     }
 
     implicit object CassandraOFetchError extends Joiner[CassandraObsFetchError] {
-      override def join[A, B, C](outer: CassandraObsFetchError#Stream[A])(relation: (A) => CassandraObsFetchError#Stream[B])
+      type T = CassandraObsFetchError
+      override def join[A, B, C](outer: T#Stream[A])(relation: (A) => T#Stream[B])
                                 (mapper: (A, B) => C)
-                                (implicit ctx: CassandraObsFetchError#Context): CassandraObsFetchError#Stream[C] =
+                                (implicit ctx: T#Context): T#Stream[C] =
         for {id ← outer; rs ← relation(id).map(mapper(id, _))} yield rs
     }
 
 
     implicit object MongoASP extends Joiner[MongoSource] {
-      override def join[A, B, C](outer: MongoSource#Stream[A])(relation: (A) => MongoSource#Stream[B])
+      type T = MongoSource
+      override def join[A, B, C](outer: T#Stream[A])(relation: (A) => T#Stream[B])
                                 (mapper: (A, B) => C)
-                                (implicit ctx: MongoSource#Context): MongoSource#Stream[C] =
+                                (implicit ctx: T#Context): T#Stream[C] =
         for { id ← outer; rs ← relation(id).map(mapper(id, _)) } yield rs
     }
 
     implicit object CassandraASP extends Joiner[CassandraSource] {
-      override def join[A, B, C](outer: CassandraSource#Stream[A])(relation: (A) => CassandraSource#Stream[B])
+      type T = CassandraSource
+      override def join[A, B, C](outer: T#Stream[A])(relation: (A) => T#Stream[B])
                                 (mapper: (A, B) => C)
-                                (implicit ctx: CassandraSource#Context): CassandraSource#Stream[C] =
+                                (implicit ctx: T#Context): T#Stream[C] =
         for { id ← outer; rs ← relation(id).map(mapper(id, _)) } yield rs
     }
 

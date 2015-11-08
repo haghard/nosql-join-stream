@@ -21,14 +21,14 @@ import rx.lang.scala.Subscriber
 import java.util.function.UnaryOperator
 import java.util.concurrent.{ TimeUnit, CountDownLatch }
 import java.util.concurrent.atomic.{ AtomicLong, AtomicReference }
-
 import org.scalatest.{ Matchers, WordSpecLike }
 import join.cassandra.{ CassandraObsFetchError, CassandraObservable, CassandraProcess, CassandraObsCursorError }
-import com.datastax.driver.core.{ Cluster, ConsistencyLevel, Row ⇒ CRow }
+import com.datastax.driver.core.{ Cluster, Row ⇒ CRow }
 import mongo.channel.test.cassandra.TemperatureEnviroment
 import rx.lang.scala.schedulers.ExecutionContextScheduler
 import scala.concurrent.ExecutionContext
 import scalaz.stream.{ Process, io }
+import scalaz.stream.sink._
 
 class JoinCassandraSpec extends WordSpecLike with Matchers with TemperatureEnviroment {
   import dsl.cassandra._
@@ -48,29 +48,29 @@ class JoinCassandraSpec extends WordSpecLike with Matchers with TemperatureEnvir
 
   "Join with CassandraProcess" should {
     "have run" in {
+      type C = CassandraProcess
       val P = Process
       val buffer = mutable.Buffer.empty[String]
       val BufferSink = io.fillBuffer(buffer)
-      val LoggerS = scalaz.stream.sink.lift[Task, String] { line ⇒ Task.delay(logger.info(line)) }
+      val LoggerS = lift[Task, String] { line ⇒ Task.delay(logger.info(line)) }
 
-      implicit val client = Cluster.builder().addContactPointsWithPorts(cassandraHost).build
+      implicit val client: C#Client = Cluster.builder().addContactPointsWithPorts(cassandraHost).build
 
-      val joinQuery = Join[CassandraProcess].left(qSensors, SENSORS, qTemperature, TEMPERATURE, KEYSPACE)(cmb)
+      val join = (Join[CassandraProcess] left (qSensors, SENSORS, qTemperature, TEMPERATURE, KEYSPACE))(cmb)
 
       (for {
-        row ← P.eval(Task.now(client)) through joinQuery.out
-        _ ← row observe LoggerS to BufferSink //thread safe since we write from single thread
+        row ← P.eval(Task.now(client.connect(KEYSPACE))) through join.out
+        _ ← row observe LoggerS to BufferSink
       } yield ())
         .onFailure { ex ⇒ logger.debug(s"CassandraProcess has been completed with error: ${ex.getMessage}"); P.halt }
         .onComplete {
           P.eval_(Task.delay {
-            client.close();
+            client.close()
             logger.info("★ ★ ★  CassandraProcess has been completed")
           })
         }
         .runLog.run
 
-      logger.info("Join with CassandraProcess: " + buffer.size)
       if (buffer.size != measureSize * sensors.size)
         fail("Error in Join with CassandraProcess")
     }
@@ -81,16 +81,12 @@ class JoinCassandraSpec extends WordSpecLike with Matchers with TemperatureEnvir
       val pageSize = 7
       val count = new AtomicLong(0)
       val done = new CountDownLatch(1)
-
       implicit val client = Cluster.builder().addContactPointsWithPorts(cassandraHost).build
       val state = new AtomicReference(Vector.empty[String])
-
-      val joinQuery =
-        Join[CassandraObservable].left(qSensors, SENSORS, qTemperature, TEMPERATURE, KEYSPACE)(cmb)
+      val join = (Join[CassandraObservable].left(qSensors, SENSORS, qTemperature, TEMPERATURE, KEYSPACE))(cmb)
 
       val S = new Subscriber[String] {
         override def onStart() = request(pageSize)
-
         override def onNext(next: String) = {
           logger.info(s"$next")
           state.updateAndGet(new UnaryOperator[Vector[String]]() {
@@ -113,7 +109,7 @@ class JoinCassandraSpec extends WordSpecLike with Matchers with TemperatureEnvir
         }
       }
 
-      joinQuery
+      join
         .observeOn(RxExecutor)
         .subscribe(S)
 
@@ -127,34 +123,31 @@ class JoinCassandraSpec extends WordSpecLike with Matchers with TemperatureEnvir
 
   "Join with CassandraObservable onError while we try to create a cursor" should {
     "have error" in {
-      val done = new CountDownLatch(1)
+      val latch = new CountDownLatch(1)
       implicit val client = Cluster.builder().addContactPointsWithPorts(cassandraHost).build
-
-      val joinQuery =
-        Join[CassandraObsCursorError].left(qSensors, SENSORS, qTemperature, TEMPERATURE, KEYSPACE)(cmb)
+      val join = (Join[CassandraObsCursorError] left (qSensors, SENSORS, qTemperature, TEMPERATURE, KEYSPACE))(cmb)
 
       val S = new Subscriber[String] {
         override def onStart() = request(1)
-
         override def onNext(next: String) = request(1)
-
         override def onError(e: Throwable) = {
           logger.info(s"★ ★ ★  CassandraObsCursorError has been completed with error: ${e.getMessage}")
           client.close()
-          done.countDown()
+          latch.countDown()
         }
 
-        override def onCompleted() = {
+        override def onCompleted = {
           logger.info("★ ★ ★  CassandraObsCursorError has been completed")
           client.close()
-          done.countDown()
+          latch.countDown()
         }
       }
-      joinQuery
+
+      join
         .observeOn(RxExecutor)
         .subscribe(S)
 
-      if (!done.await(5, TimeUnit.SECONDS)) {
+      if (!latch.await(5, TimeUnit.SECONDS)) {
         fail("Error in Join with CassandraObsCursorError")
       }
     }
@@ -164,15 +157,11 @@ class JoinCassandraSpec extends WordSpecLike with Matchers with TemperatureEnvir
     "have error" in {
       val done = new CountDownLatch(1)
       implicit val client = Cluster.builder().addContactPointsWithPorts(cassandraHost).build
-
-      val joinQuery =
-        Join[CassandraObsFetchError].left(qSensors, SENSORS, qTemperature, TEMPERATURE, KEYSPACE)(cmb)
+      val join = (Join[CassandraObsFetchError] left (qSensors, SENSORS, qTemperature, TEMPERATURE, KEYSPACE))(cmb)
 
       val S = new Subscriber[String] {
         override def onStart() = request(1)
-
         override def onNext(next: String) = request(1)
-
         override def onError(e: Throwable) = {
           logger.info(s"★ ★ ★  CassandraObsCursorError has been completed with error: ${e.getMessage}")
           client.close()
@@ -185,7 +174,8 @@ class JoinCassandraSpec extends WordSpecLike with Matchers with TemperatureEnvir
           done.countDown()
         }
       }
-      joinQuery
+
+      join
         .observeOn(RxExecutor)
         .subscribe(S)
 

@@ -13,86 +13,89 @@
  */
 
 package mongo.channel.test
-
 /*
 
 import java.net.InetSocketAddress
 import java.util.concurrent.CountDownLatch
-import java.util.concurrent.atomic.AtomicReference
-
 import _root_.join.Join
-import _root_.join.Joiner.AkkaConcurrentAttributes
-import _root_.join.cassandra.CassandraAkkaStream
+import _root_.join.cassandra.CassandraSource
 import akka.actor.ActorSystem
 import akka.stream.{ ActorMaterializer, ActorMaterializerSettings }
-import akka.stream.scaladsl.Sink
 import akka.testkit.TestKit
-import com.datastax.driver.core.{ Cluster, ConsistencyLevel, Row ⇒ CRow }
+import com.datastax.driver.core.utils.Bytes
+import com.datastax.driver.core.{ Row ⇒ CRow, QueryOptions, Cluster, ConsistencyLevel }
+import domain.formats.DomainEventFormats.ResultAddedFormat
 import org.scalatest.{ BeforeAndAfterAll, BeforeAndAfterEach, MustMatchers, WordSpecLike }
-
+import scala.annotation.tailrec
 import scala.util.{ Failure, Success }
-import scalaz.\/-
 
 class SportCenterSpec extends TestKit(ActorSystem("akka-join-stream")) with WordSpecLike with MustMatchers
     with BeforeAndAfterEach with BeforeAndAfterAll {
+  import dsl.cassandra._
+  import scala.collection.JavaConverters._
 
-  implicit val dispatcher = system.dispatchers.lookup("akka.join-dispatcher")
+  val offset = 8
+  val metaInfo = 87
+  val dName = "akka.join-dispatcher"
 
   def fold = { (acc: List[String], cur: String) ⇒ acc :+ cur }
 
   val idField = "persistence_id"
-  val cassandraHost = "192.168.0.171"
+  val cassandraHost = "192.168.0.134"
   val cassandraPort = 9042
+  val settings = ActorMaterializerSettings(system).withInputBuffer(1, 1).withDispatcher(dName)
+  implicit val Mat = ActorMaterializer(settings)
+  implicit val dispatcher = system.dispatchers.lookup(dName)
+
+  def cmb: (CassandraSource#Record, CassandraSource#Record) ⇒ CassandraSource#Record =
+    (outer, inner) ⇒
+      inner
+
+  val qNames = for {
+    q ← select(s"""SELECT processor_id FROM {0}""")
+  } yield q
+
+  //and sequence_nr > 150
+  def qDomain(r: CRow) = for {
+    _ ← select(s"select $idField, sequence_nr, message from {0} where $idField = ? and partition_nr in (0,1)")
+    q ← fk[java.lang.String](idField, r.getString("processor_id"))
+  } yield q
+
+  def deserialize(row: CassandraSource#Record): ResultAddedFormat =
+    try {
+      (ResultAddedFormat parseFrom row.getBytes("message").array())
+    } catch {
+      case e: Exception ⇒ ResultAddedFormat.getDefaultInstance
+    }
 
   "CassandraJoinPar with sportCenter db" should {
     "perform parallel join" in {
-      import dsl.cassandra._
-      import scalaz.std.AllInstances._
-      import scala.collection.JavaConverters._
-
       val latch = new CountDownLatch(1)
-      val resRef = new AtomicReference(List[String]())
-
-      val settings = ActorMaterializerSettings(system).withDispatcher("akka.join-dispatcher")
-      implicit val Attributes = \/-(AkkaConcurrentAttributes(settings, system, 4, scalaz.Semigroup[String]))
-
       implicit val client = Cluster.builder()
-        .addContactPointsWithPorts(List(new InetSocketAddress(cassandraHost, cassandraPort)).asJava).build
+        .addContactPointsWithPorts(List(new InetSocketAddress(cassandraHost, cassandraPort)).asJava)
+        .withQueryOptions(new QueryOptions().setConsistencyLevel(ConsistencyLevel.ONE))
+        .build
 
-      val qNames = for { q ← select(s"SELECT $idField FROM {0}") } yield {
-        q
-      }
+      val parSource = (Join[CassandraSource] left (qNames, "teams", qDomain, "sport_center_journal", "sport_center"))(cmb)
 
-      def qDomain(r: CRow) = for {
-        _ ← select(s"select $idField, sequence_nr from {0} where $idField = ? and sequence_nr > 100 and partition_nr in (0,1)")
-        _ ← fk[java.lang.String](idField, r.getString(idField))
-        q ← readConsistency(ConsistencyLevel.QUORUM)
-      } yield {
-        q
-      }
-
-      def cmb0: (CassandraAkkaStream#Record, CassandraAkkaStream#Record) ⇒ String =
-        (outer, inner) ⇒
-          s"Actor ${outer.getString(idField)} - ${inner.getLong("sequence_nr")} "
-
-      val parSource = Join[CassandraAkkaStream].join(qNames, "metadata", qDomain, "sport_center_journal", "sport_center")(cmb0)
-
-      val future = parSource
-        .runWith(Sink.fold(List.empty[String])(fold))(ActorMaterializer(settings)(system))
+      val future = parSource.source
+        .filter(_.getString(idField) == "cle")
+        .runForeach { row ⇒
+          println(s"${row.getString(idField)}:${row.getLong("sequence_nr")}")
+          val format = deserialize(row)
+          println(s"★ ★ ★ ${format.getResult.getHomeScore} ★ ★ ★")
+        }
 
       future.onComplete {
         case Success(r) ⇒
-          resRef.set(r)
           latch.countDown()
         case Failure(ex) ⇒
-          fail("★ ★ ★ CassandraAkkaStream par has been competed with error:" + ex.getMessage)
+          fail("CassandraAkkaStream par has been competed with error:" + ex.getMessage)
           latch.countDown()
       }
       latch.await
       client.close()
-
-      println(resRef.get())
-      resRef.get().size === 28
+      1 === 1
     }
   }
 }*/

@@ -14,6 +14,7 @@
 
 package mongo.channel.test
 
+import com.mongodb.MongoClient
 import mongo._
 import java.util.Date
 import mongo.channel.create
@@ -58,7 +59,7 @@ trait MongoClientEnviromentLifecycle[T] extends org.specs2.mutable.After {
 class IntegrationMongoClientSpec extends Specification {
 
   "Hit server with invalid query" in new MongoClientEnviromentLifecycle[Int] {
-    val query = create { b ⇒
+    val query = create[MongoClient] { b ⇒
       import b._
       q(""" { "num :  } """)
       db(TEST_DB)
@@ -77,7 +78,7 @@ class IntegrationMongoClientSpec extends Specification {
   }
 
   "Hit server with invalid query - missing collection" in new MongoClientEnviromentLifecycle[Int] {
-    val q = create { b ⇒
+    val q = create[MongoClient] { b ⇒
       b.q(""" { "num" : 1 } """)
       b.db(TEST_DB)
     }.column[Int]("article")
@@ -94,7 +95,7 @@ class IntegrationMongoClientSpec extends Specification {
   }
 
   "Hit server with invalid query - invalid sorting" in new MongoClientEnviromentLifecycle[Int] {
-    val q = create { b ⇒
+    val q = create[MongoClient] { b ⇒
       b.q(""" { "num" : 1 } """)
       b.sort(""" { "num } """) //invalid
       b.collection(PRODUCT)
@@ -113,7 +114,7 @@ class IntegrationMongoClientSpec extends Specification {
   }
 
   "Hit server with invalid query - missing db" in new MongoClientEnviromentLifecycle[Int] {
-    val q = create { b ⇒
+    val q = create[MongoClient] { b ⇒
       b.q(""" { "num" : 1 } """)
       b.collection(PRODUCT)
     }.column[Int]("article")
@@ -130,7 +131,7 @@ class IntegrationMongoClientSpec extends Specification {
   }
 
   "Hit server several times with the same query by date" in new MongoClientEnviromentLifecycle[Int] {
-    val products = create { b ⇒
+    val products = create[MongoClient] { b ⇒
       b.q("dt" $gt new Date())
       b.collection(PRODUCT)
       b.db(TEST_DB)
@@ -150,13 +151,13 @@ class IntegrationMongoClientSpec extends Specification {
   }
 
   "Interleave query streams nondeterminstically" in new MongoClientEnviromentLifecycle[String \/ Int] {
-    val products = create { b ⇒
+    val products = create[MongoClient] { b ⇒
       b.q("article" $in Seq(1, 2, 3))
       b.collection(PRODUCT)
       b.db(TEST_DB)
     }.column[Int]("article").map(_.toString)
 
-    val categories = create { b ⇒
+    val categories = create[MongoClient] { b ⇒
       b.q("category" $in Seq(12, 13))
       b.collection(CATEGORY)
       b.db(TEST_DB)

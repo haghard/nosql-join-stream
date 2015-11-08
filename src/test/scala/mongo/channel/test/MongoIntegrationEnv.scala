@@ -18,7 +18,7 @@ import java.util.Arrays._
 import java.util.Date
 import java.util.concurrent.{ ExecutorService, Executors, ThreadLocalRandom, TimeUnit }
 
-import _root_.mongo.channel.{ ScalazChannel, DBChannelFactory, QuerySetting }
+import _root_.mongo.channel.{ ScalazChannel, ChannelBuilder, QuerySetting }
 import _root_.mongo.NamedThreadFactory
 import com.mongodb._
 import de.bwaldvogel.mongo.MongoServer
@@ -141,7 +141,7 @@ object MongoIntegrationEnv {
   /**
    * used in test cases
    */
-  implicit object TestCaseFactory extends DBChannelFactory[DB] {
+  implicit object TestCaseFactory extends ChannelBuilder[DB] {
     override def createChannel(arg: String \/ QuerySetting)(implicit pool: ExecutorService): ScalazChannel[DB, DBObject] = {
       arg match {
         case \/-(setting) ⇒

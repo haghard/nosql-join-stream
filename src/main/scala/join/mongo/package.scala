@@ -21,13 +21,14 @@ package object mongo {
 
   abstract sealed trait Mongo extends StorageModule {
     override type Client = com.mongodb.MongoClient
+    override type Session = com.mongodb.DB
     override type Record = com.mongodb.DBObject
     override type QueryAttributes = MongoReadSettings
     override type Cursor = com.mongodb.Cursor
   }
 
   trait MongoProcess extends Mongo {
-    override type Stream[Out] = _root_.mongo.channel.ScalazChannel[Client, Out]
+    override type Stream[Out] = _root_.mongo.channel.ScalazChannel[Session, Out]
     override type Context = java.util.concurrent.ExecutorService
   }
 

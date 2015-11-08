@@ -47,23 +47,26 @@ class AkkaJoinMongoSpec extends TestKit(ActorSystem("akka-join-stream")) with Wo
     (outer, inner) ⇒
       s"""[PK:${outer.get("index")}] - [FK:${inner.get("lang")} - ${inner.get("name")}]"""
 
-  val decider: Supervision.Decider = {
-    case _ ⇒ Supervision.Stop
+  def decider(c: MongoSource#Client): Supervision.Decider = {
+    case _ ⇒
+      c.close()
+      Supervision.Stop
   }
 
   val dName = "akka.join-dispatcher"
-  val settings = ActorMaterializerSettings(system)
-    .withInputBuffer(32, 64)
-    .withDispatcher(dName)
-    .withSupervisionStrategy(decider)
-  implicit val Mat = ActorMaterializer(settings)
   implicit val dispatcher = system.dispatchers.lookup(dName)
 
   "MongoJoin with Akka Streams" in new MongoDbEnviroment {
     initMongo
+    implicit val c = client
+    val settings = ActorMaterializerSettings(system)
+      .withInputBuffer(32, 64)
+      .withDispatcher(dName)
+      .withSupervisionStrategy(decider(c))
+    implicit val Mat = ActorMaterializer(settings)
+
     val latch = new CountDownLatch(1)
     val resRef = new AtomicReference(List.empty[String])
-    implicit val c = client
 
     val joinSource = Join[MongoSource].left(qLang, LANGS, qProg(_), PROGRAMMERS, TEST_DB)(cmb)
 
@@ -81,6 +84,7 @@ class AkkaJoinMongoSpec extends TestKit(ActorSystem("akka-join-stream")) with Wo
 
     latch.await(5, TimeUnit.SECONDS) mustBe true
     logger.info("Seq: {}", resRef.get())
+    c.close()
     resRef.get().size mustBe MongoIntegrationEnv.programmersSize
   }
 }

@@ -46,45 +46,48 @@ class AkkaJoinCassandraSpec extends TestKit(ActorSystem("akka-join-stream")) wit
     (outer, inner) ⇒
       s"Sensor №${outer.getLong("sensor")} - time: ${inner.getLong("event_time")} temperature: ${inner.getDouble("temperature")} "
 
-  val decider: Supervision.Decider = {
-    case _ ⇒ Supervision.Stop
+  def decider(c: CassandraSource#Client): Supervision.Decider = {
+    case _ ⇒
+      c.close()
+      Supervision.Stop
   }
 
   val dName = "akka.join-dispatcher"
-  val settings = ActorMaterializerSettings(system)
-    .withInputBuffer(32, 64)
-    .withDispatcher(dName)
-    .withSupervisionStrategy(decider)
-  implicit val Mat = ActorMaterializer(settings)
   implicit val dispatcher = system.dispatchers.lookup(dName)
 
   "CassandraJoin with Akka Streams" should {
     "perform join" in {
-      val latch = new CountDownLatch(1)
-      val resRef = new AtomicReference(List[String]())
-
       val qs = new QueryOptions()
         .setConsistencyLevel(ConsistencyLevel.ONE)
         .setFetchSize(500)
 
-      implicit val client = Cluster.builder().addContactPointsWithPorts(cassandraHost).withQueryOptions(qs).build
+      implicit val c = Cluster.builder().addContactPointsWithPorts(cassandraHost).withQueryOptions(qs).build
 
-      val joinSource = (Join[CassandraSource]./:(qSensors, SENSORS, qTemperature, TEMPERATURE, KEYSPACE))(cmb)
+      val settings = ActorMaterializerSettings(system)
+        .withInputBuffer(32, 64)
+        .withDispatcher(dName)
+        .withSupervisionStrategy(decider(c))
+      implicit val Mat = ActorMaterializer(settings)
 
-      val future = joinSource.source
-        .runFold(List.empty[String]) { (acc, cur) ⇒ cur :: acc }
+      val latch = new CountDownLatch(1)
+      val resRef = new AtomicReference(List[String]())
+
+      val joinSource = (Join[CassandraSource] left (qSensors, SENSORS, qTemperature, TEMPERATURE, KEYSPACE))(cmb)
+
+      val future = joinSource.source.runFold(List.empty[String]) { (acc, cur) ⇒ cur :: acc }
 
       future.onComplete {
         case Success(r) ⇒
           resRef.set(r)
           latch.countDown()
+          c.close
         case Failure(ex) ⇒
           fail("★ ★ ★ CassandraAkkaStream join has been competed with error:" + ex.getMessage)
           latch.countDown()
       }
 
       latch.await()
-      resRef.get().size mustBe measureSize * sensors.size
+      resRef.get().size mustBe (measureSize * sensors.size)
     }
   }
 }

@@ -23,6 +23,7 @@ package object cassandra {
 
   abstract sealed trait Cassandra extends StorageModule {
     override type Client = com.datastax.driver.core.Cluster
+    override type Session = com.datastax.driver.core.Session
     override type Record = com.datastax.driver.core.Row
     override type QueryAttributes = CassandraReadSettings
     override type Cursor = java.util.Iterator[com.datastax.driver.core.Row]
@@ -38,7 +39,7 @@ package object cassandra {
   trait CassandraObsFetchError extends CassandraObservable
 
   trait CassandraProcess extends Cassandra {
-    override type Stream[Out] = _root_.mongo.channel.ScalazChannel[Client, Out]
+    override type Stream[Out] = _root_.mongo.channel.ScalazChannel[Session, Out]
     override type Context = java.util.concurrent.ExecutorService
   }
 

@@ -22,7 +22,7 @@ import org.specs2.mutable.After
 trait MongoDbEnviroment extends After {
   import MongoIntegrationEnv._
 
-  type Module <: StorageModule
+  type M <: StorageModule
 
   val logger = org.slf4j.LoggerFactory.getLogger(classOf[MongoDbEnviroment])
   var client: MongoClient = _
