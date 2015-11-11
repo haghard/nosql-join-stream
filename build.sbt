@@ -8,7 +8,7 @@ organization := "com.haghard"
 
 name := "nosql-join-stream"
 
-version := "0.1.3"
+version := "0.1.3-SNAPSHOT"
 
 scalaVersion := "2.11.7"
 
@@ -78,12 +78,13 @@ libraryDependencies ++= Seq(
 
 //JoinMongoSpec failed with specs2-core 3.6.4
 libraryDependencies ++= Seq(
-  "de.bwaldvogel"     %   "mongo-java-server" %   "1.4.4"   % "test" withSources(),
-  "org.cassandraunit" %   "cassandra-unit"    %   "2.0.2.2" % "test",
-  "org.specs2"        %%  "specs2-core"       %   "2.4.17"  % "test" withSources(),
-  "org.scalatest"     %%  "scalatest"         %   "2.2.5"   % "test",
-  "com.typesafe.akka" %%  "akka-testkit"      %   Akka      % "test",
-  "com.typesafe.akka" %%  "akka-slf4j"        %   Akka      % "test"
+  "de.bwaldvogel"       %   "mongo-java-server" %   "1.4.4"   % "test" withSources(),
+  "org.cassandraunit"   % "cassandra-unit"      %   "2.0.2.2" % "test" excludeAll(ExclusionRule(organization = "ch.qos.logback")),
+  "org.specs2"          %%  "specs2-core"       %   "2.4.17"  % "test" withSources(),
+  "org.scalatest"       %%  "scalatest"         %   "2.2.5"   % "test",
+  "com.typesafe.akka"   %%  "akka-testkit"      %   Akka      % "test",
+  "com.typesafe.akka"   %%  "akka-slf4j"        %   Akka      % "test",
+  "com.github.krasserm" %%  "akka-persistence-cassandra" %   "0.4"   % "test"
 )
 
 scalacOptions ++= Seq(

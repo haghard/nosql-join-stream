@@ -96,7 +96,6 @@ package object dsl {
     def fk[T <: AnyRef](name: String, v: T)(implicit t: ClassTag[T]): QFree[CassandraReadSettings] =
       liftFC(CassandraParam(name, v, t.runtimeClass))
 
-
     object CassandraQueryInterpreter extends (StatementOp ~> QueryC) {
       override def apply[A](fa: StatementOp[A]): QueryC[A] = fa match {
         case CassandraSelect(select) ⇒

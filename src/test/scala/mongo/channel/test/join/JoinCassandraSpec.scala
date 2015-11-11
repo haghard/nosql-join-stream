@@ -53,13 +53,12 @@ class JoinCassandraSpec extends WordSpecLike with Matchers with TemperatureEnvir
       val buffer = mutable.Buffer.empty[String]
       val BufferSink = io.fillBuffer(buffer)
       val LoggerS = lift[Task, String] { line ⇒ Task.delay(logger.info(line)) }
-
       implicit val client: C#Client = Cluster.builder().addContactPointsWithPorts(cassandraHost).build
 
       val join = (Join[CassandraProcess] left (qSensors, SENSORS, qTemperature, TEMPERATURE, KEYSPACE))(cmb)
 
       (for {
-        row ← P.eval(Task.now(client.connect(KEYSPACE))) through join.out
+        row ← P.eval(Task.now(client connect KEYSPACE)) through join.out
         _ ← row observe LoggerS to BufferSink
       } yield ())
         .onFailure { ex ⇒ logger.debug(s"CassandraProcess has been completed with error: ${ex.getMessage}"); P.halt }
@@ -83,7 +82,7 @@ class JoinCassandraSpec extends WordSpecLike with Matchers with TemperatureEnvir
       val done = new CountDownLatch(1)
       implicit val client = Cluster.builder().addContactPointsWithPorts(cassandraHost).build
       val state = new AtomicReference(Vector.empty[String])
-      val join = (Join[CassandraObservable].left(qSensors, SENSORS, qTemperature, TEMPERATURE, KEYSPACE))(cmb)
+      val join = (Join[CassandraObservable] left (qSensors, SENSORS, qTemperature, TEMPERATURE, KEYSPACE))(cmb)
 
       val S = new Subscriber[String] {
         override def onStart() = request(pageSize)

@@ -41,7 +41,7 @@ package object join {
   }
 
   /**
-   * Join is parametrized by DBModule which extends [[StorageModule]] and requires implicit values
+   * Join is parametrized by DBModule which extends ``[[StorageModule]]`` and requires implicit values
    * [[Joiner[DBModule]]] and [[Storage[DBModule]]] in scope.
    * This is done for compiler to find all implicit instance. Let's call them ``internal dependencies`` for our domain.
    * They define internal structure of the library
@@ -65,8 +65,8 @@ package object join {
                 (mapper: (M#Record, M#Record) ⇒ A): M#Stream[A] = {
       val storage = Storage[M]
       val session = (storage connect(client, resource))
-      val outer = storage.outer(outerQ, outerColl, resource, logger, ctx)(session)
-      val relation = storage.inner(innerQ, innerColl, resource, logger, ctx)(session)
+      val outer = storage.outer(outerQ, outerColl, logger, ctx)(session)
+      val relation = storage.inner(innerQ, innerColl, logger, ctx)(session)
       Joiner[M].join[M#Record, M#Record, A](outer)(relation)(mapper)
     }
   }

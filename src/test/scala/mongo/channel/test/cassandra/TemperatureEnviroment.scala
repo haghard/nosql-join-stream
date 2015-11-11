@@ -94,7 +94,7 @@ trait TemperatureEnviroment extends BeforeAndAfterAll { this: Suite ⇒
    * Partition key - sensor
    * Clustering key - event_time
    *
-   * Optimal structure for filter/search temperature by sensor
+   * Optimal structure for filter/search temperature by sensor and event_time
    *
    * Warning: bounded to 2 billion
    */

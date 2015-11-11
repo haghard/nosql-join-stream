@@ -13,20 +13,16 @@
  */
 
 package mongo.channel.test
-/*
 
 import java.net.InetSocketAddress
 import java.util.concurrent.CountDownLatch
-import _root_.join.Join
 import _root_.join.cassandra.CassandraSource
 import akka.actor.ActorSystem
 import akka.stream.{ ActorMaterializer, ActorMaterializerSettings }
 import akka.testkit.TestKit
-import com.datastax.driver.core.utils.Bytes
 import com.datastax.driver.core.{ Row ⇒ CRow, QueryOptions, Cluster, ConsistencyLevel }
 import domain.formats.DomainEventFormats.ResultAddedFormat
 import org.scalatest.{ BeforeAndAfterAll, BeforeAndAfterEach, MustMatchers, WordSpecLike }
-import scala.annotation.tailrec
 import scala.util.{ Failure, Success }
 
 class SportCenterSpec extends TestKit(ActorSystem("akka-join-stream")) with WordSpecLike with MustMatchers
@@ -41,49 +37,46 @@ class SportCenterSpec extends TestKit(ActorSystem("akka-join-stream")) with Word
   def fold = { (acc: List[String], cur: String) ⇒ acc :+ cur }
 
   val idField = "persistence_id"
-  val cassandraHost = "192.168.0.134"
+  val cassandraHost0 = "192.168.0.134"
+  val cassandraHost1 = "192.168.0.11"
   val cassandraPort = 9042
   val settings = ActorMaterializerSettings(system).withInputBuffer(1, 1).withDispatcher(dName)
   implicit val Mat = ActorMaterializer(settings)
   implicit val dispatcher = system.dispatchers.lookup(dName)
 
-  def cmb: (CassandraSource#Record, CassandraSource#Record) ⇒ CassandraSource#Record =
-    (outer, inner) ⇒
-      inner
-
-  val qNames = for {
-    q ← select(s"""SELECT processor_id FROM {0}""")
-  } yield q
-
-  //and sequence_nr > 150
-  def qDomain(r: CRow) = for {
-    _ ← select(s"select $idField, sequence_nr, message from {0} where $idField = ? and partition_nr in (0,1)")
-    q ← fk[java.lang.String](idField, r.getString("processor_id"))
-  } yield q
-
   def deserialize(row: CassandraSource#Record): ResultAddedFormat =
     try {
-      (ResultAddedFormat parseFrom row.getBytes("message").array())
+      val bts = row.getBytes("message").array()
+      ResultAddedFormat parseFrom bts.slice(offset, bts.length)
     } catch {
       case e: Exception ⇒ ResultAddedFormat.getDefaultInstance
     }
 
   "CassandraJoinPar with sportCenter db" should {
     "perform parallel join" in {
+      import feed._
       val latch = new CountDownLatch(1)
-      implicit val client = Cluster.builder()
-        .addContactPointsWithPorts(List(new InetSocketAddress(cassandraHost, cassandraPort)).asJava)
+      val client = Cluster.builder()
+        .addContactPointsWithPorts(List(new InetSocketAddress(cassandraHost0, cassandraPort), new InetSocketAddress(cassandraHost1, cassandraPort)).asJava)
         .withQueryOptions(new QueryOptions().setConsistencyLevel(ConsistencyLevel.ONE))
         .build
 
-      val parSource = (Join[CassandraSource] left (qNames, "teams", qDomain, "sport_center_journal", "sport_center"))(cmb)
+      val queryByKey = """
+        |SELECT * FROM sport_center_journal WHERE
+        |        persistence_id = ? AND
+        |        partition_nr = ? AND
+        |        sequence_nr >= ?
+      """.stripMargin
 
-      val future = parSource.source
-        .filter(_.getString(idField) == "cle")
+      implicit val session = client.connect("sport_center")
+
+      val cleFeed = Feed[CassandraSource].from(queryByKey, "cle", 50)
+      val okcFeed = Feed[CassandraSource].from(queryByKey, "okc", 50)
+
+      val future = (okcFeed.source ++ cleFeed.source)
         .runForeach { row ⇒
-          println(s"${row.getString(idField)}:${row.getLong("sequence_nr")}")
           val format = deserialize(row)
-          println(s"★ ★ ★ ${format.getResult.getHomeScore} ★ ★ ★")
+          println(s"★ ★ ★ ${format.getResult.getHomeTeam} - ${format.getResult.getAwayTeam} : ${row.getLong("sequence_nr")}")
         }
 
       future.onComplete {
@@ -98,4 +91,4 @@ class SportCenterSpec extends TestKit(ActorSystem("akka-join-stream")) with Word
       1 === 1
     }
   }
-}*/
+}
