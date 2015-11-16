@@ -27,7 +27,6 @@ import scala.util.{ Failure, Success }
 
 class SportCenterSpec extends TestKit(ActorSystem("akka-join-stream")) with WordSpecLike with MustMatchers
     with BeforeAndAfterEach with BeforeAndAfterAll {
-  import dsl.cassandra._
   import scala.collection.JavaConverters._
 
   val offset = 8
@@ -70,8 +69,8 @@ class SportCenterSpec extends TestKit(ActorSystem("akka-join-stream")) with Word
 
       implicit val session = client.connect("sport_center")
 
-      val cleFeed = Feed[CassandraSource].from(queryByKey, "cle", 50)
-      val okcFeed = Feed[CassandraSource].from(queryByKey, "okc", 50)
+      val cleFeed = Feed[CassandraSource] from(queryByKey, "cle", 50)
+      val okcFeed = Feed[CassandraSource] from(queryByKey, "okc", 50)
 
       val future = (okcFeed.source ++ cleFeed.source)
         .runForeach { row ⇒

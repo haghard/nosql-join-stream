@@ -41,7 +41,7 @@ scalacOptions ++= Seq(
 
 
 val MongoDriverVersion = "3.0.2"
-val CassandraDriverVersion = "2.1.7"
+val CassandraDriverVersion = "2.1.5" //to be equals with akka-persistence-cassandra
 val ScalazStreamVersion = "0.8"
 val RxScala = "0.25.0"
 val AkkaStreams = "2.0-M1"
@@ -83,8 +83,7 @@ libraryDependencies ++= Seq(
   "org.specs2"          %%  "specs2-core"       %   "2.4.17"  % "test" withSources(),
   "org.scalatest"       %%  "scalatest"         %   "2.2.5"   % "test",
   "com.typesafe.akka"   %%  "akka-testkit"      %   Akka      % "test",
-  "com.typesafe.akka"   %%  "akka-slf4j"        %   Akka      % "test",
-  "com.github.krasserm" %%  "akka-persistence-cassandra" %   "0.4"   % "test"
+  "com.typesafe.akka"   %%  "akka-slf4j"        %   Akka      % "test"
 )
 
 scalacOptions ++= Seq(

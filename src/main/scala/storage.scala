@@ -11,7 +11,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 import java.text.MessageFormat
 import java.util.concurrent.ExecutorService
 import akka.stream.scaladsl.Source
@@ -36,6 +35,7 @@ import scalaz.stream.Process
 import scalaz.syntax.id._
 import _root_.mongo.channel.AkkaChannel
 
+//Split them up
 package object storage {
 
   private def scheduler(exec: ExecutorService) =
@@ -296,20 +296,19 @@ package object storage {
     import join.mongo.{MongoObservable, MongoProcess, MongoSource, MongoReadSettings}
     import join.cassandra.{CassandraObservable, CassandraProcess, CassandraSource, CassandraReadSettings}
 
+    private def navigatePartition(sequenceNr: Long, maxPartitionSize: Long) = sequenceNr / maxPartitionSize
+
     implicit object CassandraStorageAkkaStream extends Storage[CassandraSource] {
       type T = CassandraSource
-      val highestQuery  ="SELECT sequence_nr FROM sport_center_journal WHERE persistence_id = ? AND partition_nr = ? ORDER BY sequence_nr DESC LIMIT 1"
 
       override def connect(client: T#Client, resource: String):T#Session =
         client connect resource
 
-      override def outer(qs: QFree[T#QueryAttributes], collection: String, log: Logger, ctx: T#Context):
-      (T#Session) => T#Stream[T#Record] =
+      override def outer(qs: QFree[T#QueryAttributes], collection: String, log: Logger, ctx: T#Context): (T#Session) => T#Stream[T#Record] =
         session =>
           AkkaChannel(Source(() => DbIterator.cassandra(qs, session, collection, log)))
 
-      override def inner(r: (T#Record) => QFree[T#QueryAttributes], collection: String, log: Logger,
-                         ctx: CassandraSource#Context):
+      override def inner(r: (T#Record) => QFree[T#QueryAttributes], collection: String, log: Logger, ctx: CassandraSource#Context):
         (T#Session) =>
           (T#Record) =>
             T#Stream[T#Record] = {
@@ -318,18 +317,15 @@ package object storage {
                   AkkaChannel(Source(() => DbIterator.cassandra(r(outer), session, collection, log)))
       }
 
-      private def navigatePartition(sequenceNr: Long, maxPartitionSize: Long): Long = sequenceNr / maxPartitionSize
-
       override def stream(session: T#Session, query: String, key: String, offset: Long, maxPartitionSize: Long,
                           log: Logger, ctx: T#Context): T#Stream[T#Record] = {
         AkkaChannel(Source(() => new Iterator[T#Record]() {
           var cursor = 0l
-          log.debug(s"★ ★ ★ [${session.##}] akka-cassandra-iterator for key:[$key] - query:[$query] ★ ★ ★")
-          val statement = (session prepare query)
-          var iter =  session.execute(statement.bind(key: String, navigatePartition(offset, maxPartitionSize):JLong,  offset: JLong)).iterator()
+          log.debug(s"akka-cassandra-iterator for key:[$key] - query:[$query]")
+          var iter =  session.execute(query, key: String, navigatePartition(offset, maxPartitionSize):JLong,  offset: JLong).iterator()
           override def hasNext = {
             if(cursor >= maxPartitionSize) {
-              iter = session.execute(statement.bind(key: String, navigatePartition(cursor, maxPartitionSize):JLong,  offset: JLong)).iterator()
+              iter = session.execute(query, key: String, navigatePartition(offset, maxPartitionSize):JLong,  offset: JLong).iterator()
             }
             iter.hasNext
           }
@@ -585,25 +581,26 @@ package object storage {
       override def connect(client: T#Client, resource: String):T#Session =
         client connect resource
 
+      override def stream(session: Session, query: String, key: String, offset: Long, maxPartitionSize: Long,
+                          log: Logger, ctx: ExecutorService): ScalazChannel[Session, T#Record] = ???
+
       private def cassandraResource(qs: QFree[T#QueryAttributes], session: T#Session,
                                     collection: String, logger: Logger): Process[Task, T#Record] =
-        Process.await(Task.delay(session)) { session =>
-          io.resource(Task.delay {
-            val attributes = implicitly[QueryInterpreter[T]].interpret(qs)
-            val query = MessageFormat.format(attributes.query, collection)
-            logger.debug(s"★ ★ ★ Create Process-Fetcher for query: query:[ $query ] Param: [ ${attributes.v} ]")
-            attributes.v.fold(session.execute(query).iterator()) { r ⇒
-              (session execute(query, r.v)).iterator()
-            }
-          })(c ⇒ Task.delay {
-            logger.debug("★ ★ ★ The cursor has been exhausted ★ ★ ★")
-          }) { c ⇒ Task.delay {
-              if (c.hasNext) {
-                val r = c.next
-                logger.debug(s"fetch $r")
-                r
-              } else throw Cause.Terminated(Cause.End)
-            }
+        io.resource(Task.delay {
+          val attributes = implicitly[QueryInterpreter[T]].interpret(qs)
+          val query = MessageFormat.format(attributes.query, collection)
+          logger.debug(s"★ ★ ★ Create cassandra-process query:[ $query ] Param: [ ${attributes.v} ]")
+          attributes.v.fold(session.execute(query).iterator()) { r ⇒
+            (session execute(query, r.v)).iterator()
+          }
+        })(c ⇒ Task.delay {
+          logger.debug("★ ★ ★ The cursor has been exhausted ★ ★ ★")
+        }) { c ⇒ Task.delay {
+            if (c.hasNext) {
+              val r = c.next
+              logger.debug(s"fetch $r")
+              r
+            } else throw Cause.Terminated(Cause.End)
           }
         }
 
@@ -623,9 +620,6 @@ package object storage {
             ScalazChannel[T#Session, T#Record](Process.eval(Task { client: T#Session ⇒
               Task.delay(cassandraResource(relation(outer), client, collection, logger))
             }(ctx)))
-
-      override def stream(session: Session, query: String, key: String, offset: Long, maxPartitionSize: Long,
-                          log: Logger, ctx: ExecutorService): ScalazChannel[Session, Row] = ???
     }
 
     def apply[T <: StorageModule: Storage]: Storage[T] = implicitly[Storage[T]]
