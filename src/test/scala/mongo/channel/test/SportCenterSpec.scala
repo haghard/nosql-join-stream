@@ -15,18 +15,25 @@
 package mongo.channel.test
 
 import java.net.InetSocketAddress
-import java.util.concurrent.CountDownLatch
-import _root_.join.cassandra.CassandraSource
+import java.util.concurrent.{ Executors, CountDownLatch }
+import java.util.concurrent.atomic.AtomicInteger
+import _root_.join.cassandra.{ CassandraObservable, CassandraSource }
 import akka.actor.ActorSystem
 import akka.stream.{ ActorMaterializer, ActorMaterializerSettings }
 import akka.testkit.TestKit
-import com.datastax.driver.core.{ Row ⇒ CRow, QueryOptions, Cluster, ConsistencyLevel }
+import com.datastax.driver.core.{ QueryOptions, Cluster, ConsistencyLevel }
 import domain.formats.DomainEventFormats.ResultAddedFormat
+import mongo.NamedThreadFactory
 import org.scalatest.{ BeforeAndAfterAll, BeforeAndAfterEach, MustMatchers, WordSpecLike }
+import rx.lang.scala.Subscriber
+import rx.lang.scala.schedulers.ExecutionContextScheduler
+import scala.concurrent.ExecutionContext
 import scala.util.{ Failure, Success }
 
 class SportCenterSpec extends TestKit(ActorSystem("akka-join-stream")) with WordSpecLike with MustMatchers
     with BeforeAndAfterEach with BeforeAndAfterAll {
+
+  import log._
   import scala.collection.JavaConverters._
 
   val offset = 8
@@ -39,9 +46,17 @@ class SportCenterSpec extends TestKit(ActorSystem("akka-join-stream")) with Word
   val cassandraHost0 = "192.168.0.134"
   val cassandraHost1 = "192.168.0.11"
   val cassandraPort = 9042
+  val hosts = List(new InetSocketAddress(cassandraHost0, cassandraPort), new InetSocketAddress(cassandraHost1, cassandraPort)).asJava
   val settings = ActorMaterializerSettings(system).withInputBuffer(1, 1).withDispatcher(dName)
   implicit val Mat = ActorMaterializer(settings)
   implicit val dispatcher = system.dispatchers.lookup(dName)
+
+  val queryByKey = """
+     |SELECT * FROM sport_center_journal WHERE
+     |        persistence_id = ? AND
+     |        partition_nr = ? AND
+     |        sequence_nr >= ?
+   """.stripMargin
 
   def deserialize(row: CassandraSource#Record): ResultAddedFormat =
     try {
@@ -51,31 +66,23 @@ class SportCenterSpec extends TestKit(ActorSystem("akka-join-stream")) with Word
       case e: Exception ⇒ ResultAddedFormat.getDefaultInstance
     }
 
-  "CassandraJoinPar with sportCenter db" should {
-    "perform parallel join" in {
-      import feed._
+  "CassandraStream with sportCenter" should {
+    /*
+    "streaming with akka" in {
       val latch = new CountDownLatch(1)
       val client = Cluster.builder()
         .addContactPointsWithPorts(List(new InetSocketAddress(cassandraHost0, cassandraPort), new InetSocketAddress(cassandraHost1, cassandraPort)).asJava)
         .withQueryOptions(new QueryOptions().setConsistencyLevel(ConsistencyLevel.ONE))
         .build
 
-      val queryByKey = """
-        |SELECT * FROM sport_center_journal WHERE
-        |        persistence_id = ? AND
-        |        partition_nr = ? AND
-        |        sequence_nr >= ?
-      """.stripMargin
-
       implicit val session = client.connect("sport_center")
 
-      val cleFeed = Feed[CassandraSource] from(queryByKey, "cle", 50)
-      val okcFeed = Feed[CassandraSource] from(queryByKey, "okc", 50)
-
+      val cleFeed = Feed[CassandraSource] from (queryByKey, "cle", 50)
+      val okcFeed = Feed[CassandraSource] from (queryByKey, "okc", 50)
       val future = (okcFeed.source ++ cleFeed.source)
         .runForeach { row ⇒
           val format = deserialize(row)
-          println(s"★ ★ ★ ${format.getResult.getHomeTeam} - ${format.getResult.getAwayTeam} : ${row.getLong("sequence_nr")}")
+          println(s"★ ★ ★ ${format.getResult.getHomeTeam} - ${format.getResult.getAwayTeam} : ${row.getLong("sequence_nr")} ★ ★ ★")
         }
 
       future.onComplete {
@@ -83,10 +90,57 @@ class SportCenterSpec extends TestKit(ActorSystem("akka-join-stream")) with Word
           latch.countDown()
         case Failure(ex) ⇒
           fail("CassandraAkkaStream par has been competed with error:" + ex.getMessage)
-          latch.countDown()
+          latch.
+            countDown()
       }
+
       latch.await
       client.close()
+      1 === 1
+    }
+*/
+    "CassandraObservable with sportCenter" in {
+      val pageSize = 32
+      val done = new CountDownLatch(1)
+      implicit val executor = Executors.newFixedThreadPool(4, new NamedThreadFactory("cassandra-worker"))
+      val RxExecutor = ExecutionContextScheduler(ExecutionContext.fromExecutor(executor))
+
+      val client = Cluster.builder
+        .addContactPointsWithPorts(hosts)
+        .withQueryOptions(new QueryOptions().setConsistencyLevel(ConsistencyLevel.ONE))
+        .build
+
+      implicit val session = client.connect("sport_center")
+
+      val cleObs = PartitionedLog[CassandraObservable] from (queryByKey, "cle", 10)
+
+      val S = new Subscriber[CassandraObservable#Record] {
+        val count = new AtomicInteger(0)
+        override def onStart() = request(pageSize)
+        override def onNext(row: CassandraObservable#Record) = {
+          println(s"${row.getString(0)} : ${row.getLong(1)} ${row.getLong(2)}")
+          //println(deserialize(row))
+          if (count.getAndIncrement() % pageSize == 0) {
+            println(s"★ ★ ★ Fetched page:[$pageSize] ★ ★ ★ ")
+            request(pageSize)
+          }
+        }
+        override def onError(e: Throwable) = {
+          println(s"★ ★ ★ CassandraObservableStream has been completed with error: ${e.getMessage}")
+          client.close()
+          done.countDown()
+        }
+        override def onCompleted() = {
+          println("★ ★ ★ CassandraObservableStream has been completed")
+          client.close()
+          done.countDown()
+        }
+      }
+
+      cleObs
+        .observeOn(RxExecutor)
+        .subscribe(S)
+      done.await()
       1 === 1
     }
   }

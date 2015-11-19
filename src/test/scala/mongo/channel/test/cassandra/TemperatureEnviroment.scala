@@ -15,30 +15,17 @@
 package mongo.channel.test.cassandra
 
 import java.io.File
-import java.net.InetSocketAddress
-import java.util.concurrent.Executors
-
 import com.datastax.driver.core.BatchStatement
-import mongo.NamedThreadFactory
 import org.scalatest.{ Suite, BeforeAndAfterAll }
 
-import scala.annotation.tailrec
 import scala.concurrent.forkjoin.ThreadLocalRandom
-import scala.util.{ Failure, Success, Try }
 
-trait TemperatureEnviroment extends BeforeAndAfterAll { this: Suite ⇒
+trait TemperatureEnviroment extends CassandraEnviroment with BeforeAndAfterAll { this: Suite ⇒
   import scala.concurrent.duration._
   import scala.collection.JavaConverters._
   import org.cassandraunit.utils.EmbeddedCassandraServerHelper
   import java.lang.{ Long ⇒ JLong }
   import java.lang.{ Double ⇒ JDouble }
-
-  val logger = org.slf4j.LoggerFactory.getLogger("Сassandra-Consumer")
-
-  implicit val executor: java.util.concurrent.ExecutorService =
-    Executors.newFixedThreadPool(Runtime.getRuntime.availableProcessors(), new NamedThreadFactory("cassandra-worker"))
-
-  val cassandraHost = List(new InetSocketAddress("127.0.0.1", 9142)).asJava
 
   val TEMPERATURE = "temperature_by_sensor"
   val SENSORS = "sensors"
@@ -47,18 +34,6 @@ trait TemperatureEnviroment extends BeforeAndAfterAll { this: Suite ⇒
   val sensors: List[JLong] = List(1l, 2l, 3l, 4l, 5l, 6l, 7l, 8l, 9l, 10l)
 
   val measureSize = 100
-
-  @tailrec private def retry[T](n: Int)(f: ⇒ T): T =
-    Try(f) match {
-      case Success(x) ⇒ x
-      case _ if n > 1 ⇒ retry(n - 1)(f)
-      case Failure(e) ⇒ throw e
-    }
-
-  val createKeyspace = s"""
-      CREATE KEYSPACE IF NOT EXISTS journal
-      WITH replication = {  'class' : 'SimpleStrategy', 'replication_factor' : '3'  }
-    """
 
   /**
    * Partition key - day, sensor)
@@ -79,24 +54,22 @@ trait TemperatureEnviroment extends BeforeAndAfterAll { this: Suite ⇒
    * Row size = {{sensors.size}}
    * All measures by sensor are grouped in single row
    *
-   *     +----+----+----+
-   *     |111 |112 |113 |
-   * +---+----+----+----+
-   * | 1 |32.1|35.9|36.9|
-   * +---+----+----+----+
+   *     +---------------+---------------+----------------+
+   *     |111:temperature|112:temperature|113:temperature |
+   * +---+---------------+---------------+----------------+
+   * | 1 |32.1           |35.9           |36.9            |
+   * +---+---------------+---------------+----------------+
    *
-   *     +----+----+----+
-   *     |111 |112 |113 |
-   * +---+----+----+----+
-   * | 2 |37.0|36.0|37.7|
-   * +---+----+----+----+
+   *     +---------------+---------------+----------------+
+   *     |111:temperature|112:temperature|113:temperature |
+   * +---+---------------+---------------+----------------+
+   * | 2 |37.0           |36.0           |37.7            |
+   * +---+---------------+---------------+----------------+
    *
    * Partition key - sensor
    * Clustering key - event_time
    *
    * Optimal structure for filter/search temperature by sensor and event_time
-   *
-   * Warning: bounded to 2 billion
    */
   val createTableTemperatureBySensor = s"""
       CREATE TABLE IF NOT EXISTS ${KEYSPACE}.${TEMPERATURE} (
@@ -126,7 +99,7 @@ trait TemperatureEnviroment extends BeforeAndAfterAll { this: Suite ⇒
     val cluster = clusterBuilder.build
     val session = cluster.connect()
 
-    retry(3) {
+    executeWithRetry(3) {
       session.execute(createKeyspace)
     }
     session.execute(createReportedSensors)

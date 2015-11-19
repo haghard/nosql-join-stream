@@ -11,8 +11,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+import java.io.Closeable
 import java.text.MessageFormat
 import java.util.concurrent.ExecutorService
+import java.util.concurrent.atomic.{AtomicReference, AtomicLong}
 import akka.stream.scaladsl.Source
 import com.datastax.driver.core.{Row, Session}
 import dsl.QFree
@@ -35,11 +38,15 @@ import scalaz.stream.Process
 import scalaz.syntax.id._
 import _root_.mongo.channel.AkkaChannel
 
+import java.lang.{Long => JLong}
+
 //Split them up
 package object storage {
 
   private def scheduler(exec: ExecutorService) =
     ExecutionContextScheduler(ExecutionContext.fromExecutor(exec))
+
+  private def navigatePartition(sequenceNr: Long, maxPartitionSize: Long) = sequenceNr / maxPartitionSize
 
   object QueryInterpreter {
     import scalaz.Free.runFC
@@ -67,25 +74,43 @@ package object storage {
     }
   }
 
-  private[storage] trait ObservableProducer[Module <: StorageModule] {
-    def collection: String
+  trait ObservableDBProducer[Module <: StorageModule] extends Closeable {
     def session: Module#Session
-    def settings: QFree[Module#QueryAttributes]
+    def fetch(n: Long)
+    def cursor: Try[Module#Cursor]
     def logger: Logger
     def subscriber: Subscriber[Module#Record]
-    def cursor: Try[Module#Cursor]
-    def producer(): Long ⇒ Unit
-    def fetch(n: Long)
+    def producer: Long ⇒ Unit =
+      n ⇒
+        try fetch(n)
+        catch {
+          case e: Exception =>
+            subscriber.onError(e)
+            close()
+        }
   }
 
-  object ObservableProducer {
+  trait ObservableJoinProducer[Module <: StorageModule] extends ObservableDBProducer[Module] {
+    def collection: String
+    def settings: QFree[Module#QueryAttributes]
+  }
+
+  trait ObservableStreamProducer[Module <: StorageModule] extends ObservableDBProducer[Module] {
+    def query: String
+    def key: String
+    def offset: Long
+    def maxPartitionSize: Long
+  }
+
+  object ObservableJoinProducer {
     import QueryInterpreter._
 
-    case class MongoProducer(settings: QFree[MongoObservable#QueryAttributes], collection: String,
-                             logger: Logger, session: MongoObservable#Session, subscriber: Subscriber[MongoObservable#Record],
-                             ctx: MongoObservable#Context) extends ObservableProducer[MongoObservable] {
+    case class MongoJoinProducer(settings: QFree[MongoObservable#QueryAttributes], collection: String,
+                                 logger: Logger, session: MongoObservable#Session, subscriber: Subscriber[MongoObservable#Record],
+                                 ctx: MongoObservable#Context) extends ObservableJoinProducer[MongoObservable] {
       override lazy val cursor: Try[MongoObservable#Cursor] = Try {
-        val qs = implicitly[QueryInterpreter[MongoObservable]].interpret(settings)
+        val qs = (implicitly[QueryInterpreter[MongoObservable]] interpret settings)
+        logger.debug(s"★ ★ ★ mongo-join-observable for query: $qs")
         val cursor = session.getCollection(collection).find(qs.query)
         cursor |> { c ⇒
           qs.sort.foreach(c.sort)
@@ -97,23 +122,14 @@ package object storage {
 
       override def fetch(n: Long): Unit =
         cursor match {
-          case Success(c) => go(n, c)
-          case Failure(ex) ⇒ subscriber.onError(ex)
+          case Success(c) ⇒ go(n, c)
+          case Failure(ex) ⇒ (subscriber onError ex)
         }
-
-      override val producer: Long ⇒ Unit =
-        n ⇒
-          try fetch(n)
-          catch {
-            case e: Exception =>
-              subscriber.onError(e)
-              cursor.foreach(_.close())
-          }
 
       @tailrec final def go(n: Long, cur: MongoObservable#Cursor): Unit =
         if (n > 0) {
           if (cur.hasNext) {
-            subscriber.onNext(cursor.get.next())
+            (subscriber onNext cursor.get.next)
             go(n - 1, cur)
           } else {
             subscriber.onCompleted()
@@ -121,76 +137,106 @@ package object storage {
             logger.debug(s"MongoObservableCursor has been exhausted")
           }
         }
+
+      override def close: Unit =
+        cursor.foreach(_.close())
     }
 
-    case class CassandraProducer(settings: QFree[CassandraObservable#QueryAttributes],
-                                 collection: String, logger: Logger,
-                                 session: CassandraObservable#Session, subscriber: Subscriber[CassandraObservable#Record],
-                                 ctx: CassandraObservable#Context) extends ObservableProducer[CassandraObservable] {
-      private val defaultPageSize = 8
+    case class CassandraStreamProducer(session: CassandraObservable#Session, query: String, key: String, offset: Long,
+                                       maxPartitionSize: Long, logger: Logger, subscriber: Subscriber[CassandraObservable#Record],
+                                       defaultPageSize: Int = 8) extends ObservableStreamProducer[CassandraObservable] {
+      val seqNum = new AtomicLong(offset)
+      val cursorRef = new AtomicReference[Try[CassandraObservable#Cursor]](cursor)
 
-      override lazy val cursor: Try[CassandraObservable#Cursor] = Try {
-        val qs = implicitly[QueryInterpreter[CassandraObservable]].interpret(settings)
-        val query = MessageFormat.format(qs.query, collection)
-        logger.debug(s"★ ★ ★ Create Observable-Fetcher for query: Query:[ $query ] Param: [ ${qs.v} ]")
-        qs.v.fold(session.execute(session.prepare(query).setConsistencyLevel(qs.consistencyLevel).bind()).iterator()) { r ⇒
-          session.execute(session.prepare(query).setConsistencyLevel(qs.consistencyLevel).bind(r.v)).iterator()
+      override def cursor: Try[CassandraObservable#Cursor] = {
+        Try {
+          val cassandraQuery = MessageFormat.format(query, key)
+          val partition = navigatePartition(seqNum.get(), maxPartitionSize)
+          logger.debug(s"★ ★ ★ cassandra-stream-observable for query: $query Key:$key Partition: $partition")
+          (session.execute(cassandraQuery, key: String, partition: JLong, offset: JLong)).iterator()
         }
       }
 
-      @tailrec private def go(n: Int, i: Int, c: CassandraObservable#Cursor): Unit = {
+      @tailrec final def loop(n: Int, i: Int, c: CassandraObservable#Cursor): Unit = {
         if (i < n && c.hasNext && !subscriber.isUnsubscribed) {
-          subscriber.onNext(c.next())
+          (subscriber onNext c.next)
+          if(seqNum.incrementAndGet() % maxPartitionSize == 0) {
+            cursorRef.set(cursor)//switch on next partition
+          }
+          loop(n, i + 1, c)
+        }
+      }
+
+      override def fetch(n: Long) = {
+        cursorRef.get() match {
+          case Success(c) =>
+            val request = if (n >= defaultPageSize) defaultPageSize else n.toInt
+            if (c.hasNext) loop(request, 0, c)
+            else subscriber.onCompleted()
+          case Failure(ex) ⇒ (subscriber onError ex)
+        }
+      }
+
+      override def close: Unit = ()
+    }
+
+    case class CassandraJoinProducer(settings: QFree[CassandraObservable#QueryAttributes], collection: String, logger: Logger,
+                                     session: CassandraObservable#Session, subscriber: Subscriber[CassandraObservable#Record],
+                                     ctx: CassandraObservable#Context, defaultPageSize: Int = 8) extends ObservableJoinProducer[CassandraObservable] {
+      override lazy val cursor: Try[CassandraObservable#Cursor] = Try {
+        val attributes = (implicitly[QueryInterpreter[CassandraObservable]] interpret settings)
+        val query = MessageFormat.format(attributes.query, collection)
+        logger.debug(s"★ ★ ★ cassandra-join-observable for query:$query Param:[ ${attributes.v} ]")
+        attributes.v.fold(session.execute(query).iterator()) { r ⇒
+          (session execute(query, r.v)).iterator()
+        }
+      }
+
+      @tailrec final def go(n: Int, i: Int, c: CassandraObservable#Cursor): Unit = {
+        if (i < n && c.hasNext && !subscriber.isUnsubscribed) {
+          (subscriber onNext c.next)
           go(n, i + 1, c)
         }
       }
 
-      override val producer: (Long) ⇒ Unit =
-        n ⇒
-          try fetch(n)
-          catch {
-            case e: Exception => subscriber.onError(e)
-          }
-
       override def fetch(n: Long) = {
         cursor match {
           case Success(c) =>
-            val intN = if (n >= defaultPageSize) {
-              defaultPageSize
-            } else n.toInt
-
-            if (c.hasNext) {
-              go(intN, 0, c)
-            }
-            else {
-              subscriber.onCompleted()
-            }
-          case Failure(ex) ⇒ subscriber.onError(ex)
+            val intN = if (n >= defaultPageSize) defaultPageSize else n.toInt
+            if (c.hasNext) go(intN, 0, c)
+            else subscriber.onCompleted()
+          case Failure(ex) ⇒ (subscriber onError ex)
         }
       }
+
+      override def close: Unit = ()
     }
 
-    def mongo(settings: QFree[MongoObservable#QueryAttributes],
-              collection: String,
-              log: Logger, session: MongoObservable#Session,
-              subscriber: Subscriber[MongoObservable#Record],
-              ctx: MongoObservable#Context) =
-      MongoProducer(settings, collection, log, session, subscriber, ctx)
+    def mongoJoin(settings: QFree[MongoObservable#QueryAttributes],
+                  collection: String, log: Logger,
+                  session: MongoObservable#Session,
+                  subscriber: Subscriber[MongoObservable#Record],
+                  ctx: MongoObservable#Context) =
+      MongoJoinProducer(settings, collection, log, session, subscriber, ctx)
 
-    def cassandra(settings: QFree[CassandraObservable#QueryAttributes],
-                  collection: String, logger: Logger,
-                  client: CassandraObservable#Session,
-                  subscriber: Subscriber[CassandraObservable#Record],
-                  ctx: CassandraObservable#Context) =
-      CassandraProducer(settings, collection, logger, client, subscriber, ctx)
+    def cassandraJoin(settings: QFree[CassandraObservable#QueryAttributes],
+                      collection: String, logger: Logger,
+                      session: CassandraObservable#Session,
+                      subscriber: Subscriber[CassandraObservable#Record],
+                      ctx: CassandraObservable#Context) =
+      CassandraJoinProducer(settings, collection, logger, session, subscriber, ctx)
 
+    def cassandraStream(session: CassandraObservable#Session, query: String, key: String,
+                        offset: Long, maxPartitionSize: Long, log: Logger,
+                        subscriber: Subscriber[CassandraObservable#Record]) =
+      CassandraStreamProducer(session, query, key, offset, maxPartitionSize, log, subscriber)
 
-    trait MongoProducerOnFetchError extends MongoProducer {
+    trait MongoProducerOnFetchError extends MongoJoinProducer {
       override def fetch(n: Long) =
         throw new MongoException("Mongo error during fetch cursor")
     }
 
-    trait MongoProducerOnCursorError extends MongoProducer {
+    trait MongoProducerOnCursorError extends MongoJoinProducer {
       override lazy val cursor: Try[MongoObservable#Cursor] = Try {
         throw new MongoException("Creation mongo cursor error")
       }
@@ -199,33 +245,33 @@ package object storage {
     def mongoFetchError(settings: QFree[MongoObservable#QueryAttributes],
                         collection: String, log: Logger, session: MongoObservable#Session,
                         subscriber: Subscriber[MongoObservable#Record], ctx: MongoObservable#Context) =
-      new MongoProducer(settings, collection, log, session, subscriber, ctx) with MongoProducerOnFetchError
+      new MongoJoinProducer(settings, collection, log, session, subscriber, ctx) with MongoProducerOnFetchError
 
     def mongoOnCursorLookupError(settings: QFree[MongoObservable#QueryAttributes],
                                  collection: String, log: Logger, session: MongoObservable#Session,
                                  subscriber: Subscriber[MongoObservable#Record], ctx: MongoObservable#Context) =
-      new MongoProducer(settings, collection, log, session, subscriber, ctx) with MongoProducerOnCursorError
+      new MongoJoinProducer(settings, collection, log, session, subscriber, ctx) with MongoProducerOnCursorError
 
-    trait CassandraProducerOnFetchError extends CassandraProducer {
+    trait CassandraProducerOnFetchError extends CassandraJoinProducer {
       override def fetch(n: Long) =
         throw new Exception("Cassandra error during fetch cursor")
     }
 
-    trait CassandraProducerOnCursorError extends CassandraProducer {
+    trait CassandraProducerOnCursorError extends CassandraJoinProducer {
       override lazy val cursor: Try[CassandraObservable#Cursor] = Try {
         throw new Exception("Creation cassandra cursor error")
       }
     }
 
-    def cassandraFetchError(settings: QFree[CassandraObservable#QueryAttributes],
-                            collection: String, logger: Logger, client: CassandraObservable#Session,
-                            subscriber: Subscriber[CassandraObservable#Record], ctx: CassandraObservable#Context) =
-      new CassandraProducer(settings, collection, logger, client, subscriber, ctx) with CassandraProducerOnFetchError
+    def cassandraFetchError(settings: QFree[CassandraObservable#QueryAttributes], collection: String,
+                            logger: Logger, client: CassandraObservable#Session, subscriber: Subscriber[CassandraObservable#Record],
+                            ctx: CassandraObservable#Context) =
+      new CassandraJoinProducer(settings, collection, logger, client, subscriber, ctx) with CassandraProducerOnFetchError
 
-    def cassandraCursorError(settings: QFree[CassandraObservable#QueryAttributes],
-                             collection: String, logger: Logger, client: CassandraObservable#Session,
-                             subscriber: Subscriber[CassandraObservable#Record], ctx: CassandraObservable#Context) =
-      new CassandraProducer(settings, collection, logger, client, subscriber, ctx) with CassandraProducerOnCursorError
+    def cassandraCursorError(settings: QFree[CassandraObservable#QueryAttributes], collection: String, logger: Logger,
+                            client: CassandraObservable#Session, subscriber: Subscriber[CassandraObservable#Record],
+                            ctx: CassandraObservable#Context) =
+      new CassandraJoinProducer(settings, collection, logger, client, subscriber, ctx) with CassandraProducerOnCursorError
   }
 
   trait QueryInterpreter[T <: StorageModule] {
@@ -244,9 +290,10 @@ package object storage {
   }
 
   object DbIterator {
+
     case class CassandraIterator(settings: QFree[CassandraSource#QueryAttributes], session: CassandraSource#Session,
                                  collection: String, logger: Logger) extends DbIterator[CassandraSource] {
-      override val attributes = implicitly[QueryInterpreter[CassandraProcess]].interpret(settings)
+      override val attributes = (implicitly[QueryInterpreter[CassandraProcess]] interpret settings)
       override val cursor = {
         val query = MessageFormat.format(attributes.query, collection)
         attributes.v.fold(session.execute(query).iterator()) { r ⇒
@@ -257,23 +304,47 @@ package object storage {
 
     case class MongoIterator(settings: QFree[MongoSource#QueryAttributes], session: MongoSource#Session,
                              collection: String, logger: Logger) extends DbIterator[MongoSource] {
-      override val attributes = implicitly[QueryInterpreter[MongoProcess]].interpret(settings)
+      override val attributes = (implicitly[QueryInterpreter[MongoProcess]] interpret settings)
       override val cursor = {
-        val local = session.getCollection(collection).find(attributes.query)
-        local |> { c ⇒
+        val dBCursor = (session.getCollection(collection) find attributes.query)
+        dBCursor |> { c ⇒
           attributes.sort.foreach(c.sort)
           attributes.skip.foreach(c.skip)
           attributes.limit.foreach(c.limit)
         }
-        local
+        dBCursor
       }
     }
 
-    def mongo(settings: QFree[MongoSource#QueryAttributes], session: MongoSource#Session, collection: String, logger: Logger) =
+    case class CassandraStreamIterator(session: CassandraSource#Session, query: String, key: String, offset: Long,
+                                       maxPartitionSize: Long, log: Logger) extends Iterator[CassandraSource#Record]() {
+      val seqNum = new AtomicLong(offset)
+      val cursorRef = new AtomicReference[CassandraSource#Cursor](newIter)
+
+      private def newIter = {
+        val p = navigatePartition(seqNum.get(), maxPartitionSize)
+        (session execute(query, key: String, p:JLong,  seqNum.get: JLong)).iterator()
+      }
+
+      override def hasNext = cursorRef.get().hasNext
+
+      override def next() = {
+        val row = cursorRef.get().next()
+        if(seqNum.incrementAndGet() % maxPartitionSize == 0) {
+          (cursorRef set newIter)
+        }
+        row
+      }
+    }
+
+    def mongoJoin(settings: QFree[MongoSource#QueryAttributes], session: MongoSource#Session, collection: String, logger: Logger) =
       MongoIterator(settings, session, collection, logger)
 
-    def cassandra(settings: QFree[CassandraSource#QueryAttributes], session: CassandraSource#Session, collection: String, logger: Logger) =
+    def cassandraJoin(settings: QFree[CassandraSource#QueryAttributes], session: CassandraSource#Session, collection: String, logger: Logger) =
       CassandraIterator(settings, session, collection, logger)
+
+    def cassandraStream(session: CassandraSource#Session, query: String, key: String, offset: Long, maxPartitionSize: Long, log: Logger) =
+      CassandraStreamIterator(session, query, key, offset, maxPartitionSize, log)
   }
 
   @implicitNotFound(msg = "Cannot find Storage type class for ${T}")
@@ -281,8 +352,8 @@ package object storage {
 
     def connect(client: T#Client, resource: String):T#Session
 
-    def stream(session: T#Session, query: String, key: String, offset: Long, maxPartitionSize: Long,
-               log: Logger, ctx: T#Context): T#Stream[T#Record]
+    def log(session: T#Session, query: String, key: String, offset: Long, maxPartitionSize: Long,
+            log: Logger, ctx: T#Context): T#Stream[T#Record]
 
     def outer(q: QFree[T#QueryAttributes], collection: String,
               log: Logger, ctx: T#Context): T#Session ⇒ T#Stream[T#Record]
@@ -292,11 +363,8 @@ package object storage {
   }
 
   object Storage {
-    import java.lang.{Long => JLong}
     import join.mongo.{MongoObservable, MongoProcess, MongoSource, MongoReadSettings}
     import join.cassandra.{CassandraObservable, CassandraProcess, CassandraSource, CassandraReadSettings}
-
-    private def navigatePartition(sequenceNr: Long, maxPartitionSize: Long) = sequenceNr / maxPartitionSize
 
     implicit object CassandraStorageAkkaStream extends Storage[CassandraSource] {
       type T = CassandraSource
@@ -306,7 +374,7 @@ package object storage {
 
       override def outer(qs: QFree[T#QueryAttributes], collection: String, log: Logger, ctx: T#Context): (T#Session) => T#Stream[T#Record] =
         session =>
-          AkkaChannel(Source(() => DbIterator.cassandra(qs, session, collection, log)))
+          AkkaChannel(Source(() => DbIterator.cassandraJoin(qs, session, collection, log)))
 
       override def inner(r: (T#Record) => QFree[T#QueryAttributes], collection: String, log: Logger, ctx: CassandraSource#Context):
         (T#Session) =>
@@ -314,28 +382,12 @@ package object storage {
             T#Stream[T#Record] = {
               session =>
                 outer =>
-                  AkkaChannel(Source(() => DbIterator.cassandra(r(outer), session, collection, log)))
+                  AkkaChannel(Source(() => DbIterator.cassandraJoin(r(outer), session, collection, log)))
       }
 
-      override def stream(session: T#Session, query: String, key: String, offset: Long, maxPartitionSize: Long,
-                          log: Logger, ctx: T#Context): T#Stream[T#Record] = {
-        AkkaChannel(Source(() => new Iterator[T#Record]() {
-          var cursor = 0l
-          log.debug(s"akka-cassandra-iterator for key:[$key] - query:[$query]")
-          var iter =  session.execute(query, key: String, navigatePartition(offset, maxPartitionSize):JLong,  offset: JLong).iterator()
-          override def hasNext = {
-            if(cursor >= maxPartitionSize) {
-              iter = session.execute(query, key: String, navigatePartition(offset, maxPartitionSize):JLong,  offset: JLong).iterator()
-            }
-            iter.hasNext
-          }
-          override def next() = {
-            val row = iter.next()
-            cursor += 1
-            row
-          }
-        }))
-      }
+      override def log(session: T#Session, query: String, key: String, offset: Long, maxPartitionSize: Long, log: Logger,
+                       ctx: T#Context): T#Stream[T#Record] =
+        AkkaChannel(Source(() => DbIterator.cassandraStream(session,query,key, offset, maxPartitionSize, log)))
     }
 
     implicit object MongoStorageAkkaStream extends Storage[MongoSource] {
@@ -347,16 +399,16 @@ package object storage {
       override def outer(qs: QFree[T#QueryAttributes], collection: String, log: Logger, ctx: MongoSource#Context):
                          (T#Session) => T#Stream[T#Record] =
         session =>
-          AkkaChannel(Source(() => DbIterator.mongo(qs, session, collection, log)))
+          AkkaChannel(Source(() => DbIterator.mongoJoin(qs, session, collection, log)))
 
       override def inner(relation: (T#Record) => QFree[T#QueryAttributes], collection: String, log: Logger, ctx: T#Context):
         (T#Session) => (T#Record) => T#Stream[T#Record] =
           session =>
              outer =>
-               AkkaChannel(Source(() => DbIterator.mongo(relation(outer), session, collection, log)))
+               AkkaChannel(Source(() => DbIterator.mongoJoin(relation(outer), session, collection, log)))
 
-      override def stream(session: DB, query: String, key: String, offset: Long, maxPartitionSize: Long,
-                          log: Logger, ctx: ExecutionContext): AkkaChannel[DBObject, Unit] = ???
+      override def log(session: DB, query: String, key: String, offset: Long, maxPartitionSize: Long,
+                       log: Logger, ctx: ExecutionContext): AkkaChannel[DBObject, Unit] = ???
     }
 
     implicit object MongoStorageObservable extends Storage[MongoObservable] {
@@ -368,7 +420,7 @@ package object storage {
       private def mongoObs(qs: QFree[T#QueryAttributes], collection: String,
                            logger: Logger, session: T#Session, ctx: T#Context) =
         Observable { subscriber: Subscriber[T#Record] ⇒
-          subscriber.setProducer(ObservableProducer.mongo(qs, collection, logger, session, subscriber, ctx).producer)
+          subscriber.setProducer(ObservableJoinProducer.mongoJoin(qs, collection, logger, session, subscriber, ctx).producer)
         }.subscribeOn(scheduler(ctx))
 
       override def outer(q: QFree[T#QueryAttributes], collection: String, logger: Logger, ctx: T#Context): (T#Session) ⇒ Observable[T#Record] =
@@ -380,8 +432,8 @@ package object storage {
         session ⇒
           outer ⇒ mongoObs(relation(outer), collection, logger, session, ctx)
 
-      override def stream(session: DB, query: String, key: String, offset: Long, maxPartitionSize: Long,
-                          log: Logger, ctx: ExecutorService): Observable[DBObject] = ???
+      override def log(session: DB, query: String, key: String, offset: Long, maxPartitionSize: Long,
+                       log: Logger, ctx: ExecutorService): Observable[DBObject] = ???
     }
 
     implicit object MongoObsCursorError extends Storage[MongoObsCursorError] {
@@ -393,7 +445,7 @@ package object storage {
       private def mongoObsCursorError(qs: QFree[T#QueryAttributes], collection: String,
                                       logger: Logger, session: T#Session, ctx: T#Context) =
         Observable { subscriber: Subscriber[T#Record] ⇒
-          subscriber.setProducer(ObservableProducer.mongoOnCursorLookupError(qs, collection, logger, session, subscriber, ctx).producer)
+          subscriber.setProducer(ObservableJoinProducer.mongoOnCursorLookupError(qs, collection, logger, session, subscriber, ctx).producer)
         }.subscribeOn(scheduler(ctx))
 
       override def outer(q: QFree[T#QueryAttributes], collection: String,
@@ -406,8 +458,8 @@ package object storage {
           outer =>
             mongoObsCursorError(relation(outer), collection, log, session, ctx)
 
-      override def stream(session: DB, query: String, key: String, offset: Long, maxPartitionSize: Long,
-                          log: Logger, ctx: ExecutorService): Observable[DBObject] = ???
+      override def log(session: DB, query: String, key: String, offset: Long, maxPartitionSize: Long,
+                       log: Logger, ctx: ExecutorService): Observable[DBObject] = ???
     }
 
     implicit object MongoObsFetchError extends Storage[MongoObsFetchError] {
@@ -419,7 +471,7 @@ package object storage {
       private def mongoObsCursorError(qs: QFree[T#QueryAttributes], collection: String,
                                       logger: Logger, session: T#Session, ctx: T#Context) =
         Observable { subscriber: Subscriber[T#Record] ⇒
-          subscriber.setProducer(ObservableProducer.mongoFetchError(qs, collection, logger, session, subscriber, ctx).producer)
+          subscriber.setProducer(ObservableJoinProducer.mongoFetchError(qs, collection, logger, session, subscriber, ctx).producer)
         }.subscribeOn(scheduler(ctx))
 
       override def outer(q: QFree[T#QueryAttributes], collection: String,
@@ -433,8 +485,8 @@ package object storage {
           outer =>
             mongoObsCursorError(relation(outer), collection, log, session, ctx)
 
-      override def stream(session: DB, query: String, key: String, offset: Long, maxPartitionSize: Long,
-                          log: Logger, ctx: ExecutorService): Observable[DBObject] = ???
+      override def log(session: DB, query: String, key: String, offset: Long, maxPartitionSize: Long,
+                       log: Logger, ctx: ExecutorService): Observable[DBObject] = ???
     }
 
     implicit object CassandraStorageObservable extends Storage[CassandraObservable] {
@@ -443,27 +495,30 @@ package object storage {
       override def connect(client: T#Client, resource: String):T#Session =
         client connect resource
 
-      private def cassandraObs(qs: QFree[CassandraReadSettings], session: T#Session,
-                               collection: String, logger: Logger,
-                               ctx: ExecutorService): Observable[T#Record] = {
+      private def cassandraObservable(qs: QFree[CassandraReadSettings], session: T#Session,
+                                      collection: String,
+                                      logger: Logger, ctx: ExecutorService): Observable[T#Record] = {
         Observable { subscriber: Subscriber[T#Record] ⇒
-          subscriber.setProducer(ObservableProducer.cassandra(qs, collection, logger, session, subscriber, ctx).producer)
+          subscriber.setProducer(ObservableJoinProducer.cassandraJoin(qs, collection, logger, session, subscriber, ctx).producer)
         }.subscribeOn(scheduler(ctx))
       }
 
       override def outer(settings: QFree[T#QueryAttributes], collection: String,
                          logger: Logger, ctx: T#Context): (T#Session) ⇒ T#Stream[T#Record] =
         session ⇒
-          cassandraObs(settings, session, collection, logger, ctx)
+          cassandraObservable(settings, session, collection, logger, ctx)
 
-      override def inner(relation: (T#Record) ⇒ QFree[T#QueryAttributes],
-                         collection: String, log: Logger, ctx: T#Context): (T#Session) ⇒ (T#Record) ⇒ Observable[T#Record] =
+      override def inner(relation: (T#Record) ⇒ QFree[T#QueryAttributes], collection: String,
+                         log: Logger, ctx: T#Context): (T#Session) ⇒ (T#Record) ⇒ Observable[T#Record] =
         session ⇒
           outer ⇒
-            cassandraObs(relation(outer), session, collection, log, ctx)
+            cassandraObservable(relation(outer), session, collection, log, ctx)
 
-      override def stream(session: Session, query: String, key: String, offset: Long, maxPartitionSize: Long,
-                          log: Logger, ctx: ExecutorService): Observable[Row] = ???
+      override def log(session: T#Session, query: String, key: String, offset: Long, maxPartitionSize: Long,
+                       log: Logger, ctx: T#Context): T#Stream[T#Record] =
+        Observable { subscriber: Subscriber[T#Record] ⇒
+          subscriber.setProducer(ObservableJoinProducer.cassandraStream(session, query, key, offset, maxPartitionSize, log, subscriber).producer)
+        }.subscribeOn(scheduler(ctx))
     }
 
     implicit object CassandraObsCursorError extends Storage[CassandraObsCursorError] {
@@ -476,7 +531,7 @@ package object storage {
                                collection: String, logger: Logger,
                                ctx: ExecutorService): Observable[T#Record] = {
         Observable { subscriber: Subscriber[T#Record] ⇒
-          subscriber.setProducer(ObservableProducer.cassandraCursorError(qs, collection, logger, session, subscriber, ctx).producer)
+          subscriber.setProducer(ObservableJoinProducer.cassandraCursorError(qs, collection, logger, session, subscriber, ctx).producer)
         }.subscribeOn(scheduler(ctx))
       }
 
@@ -491,8 +546,8 @@ package object storage {
           outer ⇒
             cassandraObs(relation(outer), session, collection, log, ctx)
 
-      override def stream(session: Session, query: String, key: String, offset: Long, maxPartitionSize: Long,
-                          log: Logger, ctx: ExecutorService): Observable[Row] = ???
+      override def log(session: Session, query: String, key: String, offset: Long, maxPartitionSize: Long,
+                       log: Logger, ctx: ExecutorService): Observable[Row] = ???
     }
 
     implicit object CassandraObsFetchError extends Storage[CassandraObsFetchError] {
@@ -505,7 +560,7 @@ package object storage {
                                collection: String, logger: Logger,
                                ctx: ExecutorService): Observable[T#Record] = {
         Observable { subscriber: Subscriber[T#Record] ⇒
-          subscriber.setProducer(ObservableProducer.cassandraFetchError(qs, collection, logger, session, subscriber, ctx).producer)
+          subscriber.setProducer(ObservableJoinProducer.cassandraFetchError(qs, collection, logger, session, subscriber, ctx).producer)
         }.subscribeOn(scheduler(ctx))
       }
 
@@ -519,8 +574,8 @@ package object storage {
           outer ⇒
             cassandraObs(relation(outer), session, collection, log, ctx)
 
-      override def stream(session: Session, query: String, key: String, offset: Long, maxPartitionSize: Long,
-                          log: Logger, ctx: ExecutorService): Observable[Row] = ???
+      override def log(session: Session, query: String, key: String, offset: Long, maxPartitionSize: Long,
+                       log: Logger, ctx: ExecutorService): Observable[Row] = ???
     }
 
     implicit object MongoStorageProcess extends Storage[MongoProcess] {
@@ -539,10 +594,10 @@ package object storage {
             qs.skip.foreach(c.skip)
             qs.limit.foreach(c.limit)
           }
-          logger.debug(s"Create Process-Fetcher for query from $collection Sort:[ ${qs.sort} ] Skip:[ ${qs.skip} ] Limit:[ ${qs.limit} ] Query:[ ${qs.query} ]")
+          logger.debug(s" mongo-join-process from $collection Sort:[ ${qs.sort} ] Skip:[ ${qs.skip} ] Limit:[ ${qs.limit} ] Query:[ ${qs.query} ]")
           cursor
         })(c ⇒ Task.delay {
-          logger.info(s"The cursor has been closed");
+          logger.info(s"The cursor has been closed")
           c.close()
         }) { c ⇒
           Task.delay {
@@ -571,8 +626,8 @@ package object storage {
             }(ctx)))
       }
 
-      override def stream(session: DB, query: String, key: String, offset: Long,  maxPartitionSize: Long,
-                          log: Logger, ctx: ExecutorService): ScalazChannel[DB, DBObject] = ???
+      override def log(session: DB, query: String, key: String, offset: Long, maxPartitionSize: Long,
+                       log: Logger, ctx: ExecutorService): ScalazChannel[DB, DBObject] = ???
     }
 
     implicit object CassandraStorageProcess extends Storage[CassandraProcess] {
@@ -581,21 +636,17 @@ package object storage {
       override def connect(client: T#Client, resource: String):T#Session =
         client connect resource
 
-      override def stream(session: Session, query: String, key: String, offset: Long, maxPartitionSize: Long,
-                          log: Logger, ctx: ExecutorService): ScalazChannel[Session, T#Record] = ???
-
       private def cassandraResource(qs: QFree[T#QueryAttributes], session: T#Session,
                                     collection: String, logger: Logger): Process[Task, T#Record] =
         io.resource(Task.delay {
-          val attributes = implicitly[QueryInterpreter[T]].interpret(qs)
+          val attributes = (implicitly[QueryInterpreter[T]] interpret qs)
           val query = MessageFormat.format(attributes.query, collection)
-          logger.debug(s"★ ★ ★ Create cassandra-process query:[ $query ] Param: [ ${attributes.v} ]")
+          logger.debug(s"★ ★ ★ cassandra-join-process query:[ $query ] param: [ ${attributes.v} ]")
           attributes.v.fold(session.execute(query).iterator()) { r ⇒
             (session execute(query, r.v)).iterator()
           }
-        })(c ⇒ Task.delay {
-          logger.debug("★ ★ ★ The cursor has been exhausted ★ ★ ★")
-        }) { c ⇒ Task.delay {
+        })(c ⇒ Task.delay(logger.debug("★ ★ ★ The cursor has been exhausted ★ ★ ★"))) { c ⇒
+          Task.delay {
             if (c.hasNext) {
               val r = c.next
               logger.debug(s"fetch $r")
@@ -603,6 +654,29 @@ package object storage {
             } else throw Cause.Terminated(Cause.End)
           }
         }
+
+      override def log(session: T#Session, query: String, key: String, offset: Long, maxPartitionSize: Long,
+                       log: Logger, ctx: T#Context): ScalazChannel[T#Session, T#Record] = {
+        ScalazChannel[T#Session, T#Record](Process.eval(Task { session: T#Session ⇒
+          Task.delay {
+            def newIter(seqNum: Long): T#Cursor = {
+              val cassandraQuery = MessageFormat.format(query, key)
+              val p = navigatePartition(seqNum, maxPartitionSize)
+              //log.debug(s"★ ★ ★ cassandra-log-process query $query Key:$key Partition: $p - seqNum: $seqNum")
+              (session.execute(cassandraQuery, key: String, p: JLong, seqNum: JLong)).iterator()
+            }
+
+            def loop(seqNum: Long, iter: T#Cursor): Process[Task, T#Record] = {
+              def innerLoop(seqNum: Long, iter: T#Cursor): Process[Task, T#Record] =
+                if(iter.hasNext) Process.emit(iter.next()) ++ innerLoop(seqNum + 1, iter)
+                else loop(seqNum, newIter(seqNum))
+
+              if (iter.hasNext) innerLoop(seqNum, iter) else Process.halt
+            }
+            loop(offset, newIter(offset))
+          }
+        }(ctx)))
+      }
 
       override def outer(qs: QFree[T#QueryAttributes],
                          collection: String, logger: Logger,
