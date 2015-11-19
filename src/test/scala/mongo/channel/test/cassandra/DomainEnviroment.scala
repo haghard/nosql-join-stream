@@ -27,8 +27,8 @@ import java.lang.{ Long ⇒ JLong }
 trait DomainEnviroment extends BeforeAndAfterAll with CassandraEnviroment { this: Suite ⇒
   val DOMAIN = "domain"
 
-  val maxPartitionSize = 16
-  val domainSize = 60l
+  val maxPartitionSize = 16l
+  val domainSize = 150l
 
   def RxExecutor = ExecutionContextScheduler(ExecutionContext.fromExecutor(executor))
 
@@ -66,7 +66,7 @@ trait DomainEnviroment extends BeforeAndAfterAll with CassandraEnviroment { this
       PRIMARY KEY ((persistence_id, partition_nr), sequence_nr)
      ) WITH CLUSTERING ORDER BY (sequence_nr ASC)
   """
-  val actors = Vector("okc", "cle", "hou")
+  val actors = Vector("okc", "cle")
   val insert = s"INSERT INTO journal.${DOMAIN} (persistence_id, partition_nr, sequence_nr, body) VALUES (?, ?, ?, ?)"
 
   def queryByKey =

@@ -657,21 +657,21 @@ package object storage {
 
       override def log(session: T#Session, query: String, key: String, offset: Long, maxPartitionSize: Long,
                        log: Logger, ctx: T#Context): ScalazChannel[T#Session, T#Record] = {
+        def newIter(seqNum: Long): T#Cursor = {
+          val cassandraQuery = MessageFormat.format(query, key)
+          val p = navigatePartition(seqNum, maxPartitionSize)
+          //log.debug(s"★ ★ ★ cassandra-log-process query $query Key:$key Partition: $p - seqNum: $seqNum")
+          (session.execute(cassandraQuery, key: String, p: JLong, seqNum: JLong)).iterator()
+        }
+
         ScalazChannel[T#Session, T#Record](Process.eval(Task { session: T#Session ⇒
           Task.delay {
-            def newIter(seqNum: Long): T#Cursor = {
-              val cassandraQuery = MessageFormat.format(query, key)
-              val p = navigatePartition(seqNum, maxPartitionSize)
-              //log.debug(s"★ ★ ★ cassandra-log-process query $query Key:$key Partition: $p - seqNum: $seqNum")
-              (session.execute(cassandraQuery, key: String, p: JLong, seqNum: JLong)).iterator()
-            }
-
             def loop(seqNum: Long, iter: T#Cursor): Process[Task, T#Record] = {
-              def innerLoop(seqNum: Long, iter: T#Cursor): Process[Task, T#Record] =
-                if(iter.hasNext) Process.emit(iter.next()) ++ innerLoop(seqNum + 1, iter)
+              def partitionLoop(seqNum: Long, iter: T#Cursor): Process[Task, T#Record] =
+                if(iter.hasNext) Process.emit(iter.next()) ++ partitionLoop(seqNum + 1, iter)
                 else loop(seqNum, newIter(seqNum))
 
-              if (iter.hasNext) innerLoop(seqNum, iter) else Process.halt
+              if (iter.hasNext) partitionLoop(seqNum, iter) else Process.halt
             }
             loop(offset, newIter(offset))
           }
