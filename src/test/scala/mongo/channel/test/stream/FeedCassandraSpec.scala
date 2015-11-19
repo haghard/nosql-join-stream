@@ -49,7 +49,7 @@ class FeedCassandraSpec extends WordSpecLike with MustMatchers with DomainEnviro
   }
 
   "PartitionedCassandraLog" must {
-    /*
+
     "run with CassandraObservable" in {
       val latch = new CountDownLatch(1)
       val count = new AtomicLong(0)
@@ -64,7 +64,7 @@ class FeedCassandraSpec extends WordSpecLike with MustMatchers with DomainEnviro
       latch.await()
       client.close()
       count.get() mustEqual domainSize - 5
-    }*/
+    }
 
     "run with CassandraProcess" in {
       import scalaz.stream.Process._

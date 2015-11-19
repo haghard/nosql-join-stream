@@ -12,6 +12,8 @@
  * limitations under the License.
  */
 
+/*
+
 package mongo.channel.test
 
 import java.net.InetSocketAddress
@@ -67,7 +69,6 @@ class SportCenterSpec extends TestKit(ActorSystem("akka-join-stream")) with Word
     }
 
   "CassandraStream with sportCenter" should {
-    /*
     "streaming with akka" in {
       val latch = new CountDownLatch(1)
       val client = Cluster.builder()
@@ -77,8 +78,8 @@ class SportCenterSpec extends TestKit(ActorSystem("akka-join-stream")) with Word
 
       implicit val session = client.connect("sport_center")
 
-      val cleFeed = Feed[CassandraSource] from (queryByKey, "cle", 50)
-      val okcFeed = Feed[CassandraSource] from (queryByKey, "okc", 50)
+      val cleFeed = PartitionedLog[CassandraSource] from (queryByKey, "cle", 50)
+      val okcFeed = PartitionedLog[CassandraSource] from (queryByKey, "okc", 50)
       val future = (okcFeed.source ++ cleFeed.source)
         .runForeach { row ⇒
           val format = deserialize(row)
@@ -98,7 +99,7 @@ class SportCenterSpec extends TestKit(ActorSystem("akka-join-stream")) with Word
       client.close()
       1 === 1
     }
-*/
+
     "CassandraObservable with sportCenter" in {
       val pageSize = 32
       val done = new CountDownLatch(1)
@@ -144,4 +145,4 @@ class SportCenterSpec extends TestKit(ActorSystem("akka-join-stream")) with Word
       1 === 1
     }
   }
-}
+}*/
