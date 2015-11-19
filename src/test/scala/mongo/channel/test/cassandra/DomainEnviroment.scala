@@ -28,7 +28,7 @@ trait DomainEnviroment extends BeforeAndAfterAll with CassandraEnviroment { this
   val DOMAIN = "domain"
 
   val maxPartitionSize = 16l
-  val domainSize = 150l
+  val domainSize = 100l
 
   def RxExecutor = ExecutionContextScheduler(ExecutionContext.fromExecutor(executor))
 
