@@ -27,7 +27,7 @@ import scalaz.stream.io
 import scalaz.stream.sink._
 import log.PartitionedLog
 
-class FeedCassandraSpec extends WordSpecLike with MustMatchers with DomainEnviroment {
+class PartitionedLogCassandraSpec extends WordSpecLike with MustMatchers with DomainEnviroment {
   val pageSize = 16
 
   def subscriber(count: AtomicLong, latch: CountDownLatch) = new Subscriber[CassandraObservable#Record] {
@@ -53,9 +53,11 @@ class FeedCassandraSpec extends WordSpecLike with MustMatchers with DomainEnviro
     "read log with CassandraObservable" in {
       val latch = new CountDownLatch(1)
       val count = new AtomicLong(0)
-      val clusterBuilder = com.datastax.driver.core.Cluster.builder.addContactPointsWithPorts(cassandraHost)
-      val client = clusterBuilder.build
-      implicit val session = clusterBuilder.build.connect("journal")
+      val client = com.datastax.driver.core.Cluster.builder
+        .addContactPointsWithPorts(cassandraHost)
+        .withQueryOptions(queryOps)
+        .build
+      implicit val session = (client connect "journal")
 
       (PartitionedLog[CassandraObservable] from (queryByKey, actors.head, 5, maxPartitionSize))
         .observeOn(RxExecutor)
@@ -69,7 +71,10 @@ class FeedCassandraSpec extends WordSpecLike with MustMatchers with DomainEnviro
     "read log with CassandraProcess" in {
       import scalaz.stream.Process._
       type T = CassandraProcess
-      val clusterBuilder = com.datastax.driver.core.Cluster.builder.addContactPointsWithPorts(cassandraHost)
+      val clusterBuilder = com.datastax.driver.core.Cluster.builder
+        .addContactPointsWithPorts(cassandraHost)
+        .withQueryOptions(queryOps)
+
       val client = clusterBuilder.build
       implicit val session = (client connect "journal")
 
@@ -98,7 +103,10 @@ class FeedCassandraSpec extends WordSpecLike with MustMatchers with DomainEnviro
     "read 2 logs with different lenght through zip with CassandraProcess" in {
       import scalaz.stream.Process._
       type T = CassandraProcess
-      val clusterBuilder = com.datastax.driver.core.Cluster.builder.addContactPointsWithPorts(cassandraHost)
+      val clusterBuilder = com.datastax.driver.core.Cluster.builder
+        .addContactPointsWithPorts(cassandraHost)
+        .withQueryOptions(queryOps)
+
       val client = clusterBuilder.build
       implicit val session = (client connect "journal")
       val count = new AtomicLong(0l)

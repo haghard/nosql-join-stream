@@ -41,10 +41,10 @@ scalacOptions ++= Seq(
 
 
 val MongoDriverVersion = "3.0.2"
-val CassandraDriverVersion = "2.1.5" //to be equals with akka-persistence-cassandra
+val CassandraDriverVersion = "3.0.0-alpha4" //to be equal to spark-cassandra-connector
 val ScalazStreamVersion = "0.8"
 val RxScala = "0.25.0"
-val AkkaStreams = "2.0-M1"
+val AkkaStreams = "2.0-M2"
 val Akka = "2.4.0"
 val Logback = "1.1.2"
 
@@ -59,20 +59,19 @@ ScalariformKeys.preferences := ScalariformKeys.preferences.value
 
 net.virtualvoid.sbt.graph.Plugin.graphSettings
 
-
 resolvers ++= Seq(
   "Local Maven Repository" at "file:///" + localMvnRepo,
   "Scalaz" at "http://dl.bintray.com/scalaz/releases"
 )
 
 libraryDependencies ++= Seq(
-    "org.mongodb"            %   "mongo-java-driver"        %   MongoDriverVersion     withSources(),
-    "com.datastax.cassandra" %   "cassandra-driver-core"    %   CassandraDriverVersion withSources(),
-    "org.scalaz.stream"      %%  "scalaz-stream"            %   ScalazStreamVersion    withSources(),
-    "io.reactivex"           %%  "rxscala"                  %   RxScala                withSources(),
-    "com.google.protobuf"    %   "protobuf-java"            %  "2.5.0"                 withSources(),
-    "com.typesafe.akka"      %%  "akka-stream-experimental" %   AkkaStreams            withSources(),
-    "ch.qos.logback"         %   "logback-classic"          %   Logback
+  "org.mongodb"            %   "mongo-java-driver"        %   MongoDriverVersion     withSources(),
+  "com.datastax.cassandra" %   "cassandra-driver-core"    %   CassandraDriverVersion withSources(),
+  "org.scalaz.stream"      %%  "scalaz-stream"            %   ScalazStreamVersion    withSources(),
+  "io.reactivex"           %%  "rxscala"                  %   RxScala                withSources(),
+  "com.typesafe.akka"      %%  "akka-stream-experimental" %   AkkaStreams            withSources(),
+  "com.google.protobuf"    %   "protobuf-java"            %  "2.5.0"                 withSources(),
+  "ch.qos.logback"         %   "logback-classic"          %   Logback
 )
 
 

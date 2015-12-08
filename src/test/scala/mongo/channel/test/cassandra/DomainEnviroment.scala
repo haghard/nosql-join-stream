@@ -15,7 +15,7 @@
 package mongo.channel.test.cassandra
 
 import java.io.File
-import com.datastax.driver.core.{ BatchStatement, Session }
+import com.datastax.driver.core.{ ConsistencyLevel, QueryOptions, BatchStatement, Session }
 import org.cassandraunit.utils.EmbeddedCassandraServerHelper
 import org.scalatest.{ Suite, BeforeAndAfterAll }
 import rx.lang.scala.schedulers.ExecutionContextScheduler
@@ -83,12 +83,15 @@ trait DomainEnviroment extends BeforeAndAfterAll with CassandraEnviroment { this
     actors.map(s.prepare(insert).bind(_, navigatePartition(i, maxPartitionSize): JLong, i: JLong, "xxx"))
   }.asJava
 
+  val queryOps = new QueryOptions().setFetchSize(1000).setConsistencyLevel(ConsistencyLevel.ONE)
+
   override protected def beforeAll(): Unit = {
     val f = new File(getClass.getClassLoader.getResource("cassandra_network_strategy.yaml").getPath)
     CassandraServerHelper.startEmbeddedCassandra(f, "./cas-tmp", 10.seconds.toMillis)
 
     val clusterBuilder = com.datastax.driver.core.Cluster.builder
       .addContactPointsWithPorts(cassandraHost)
+      .withQueryOptions(queryOps)
     val cluster = clusterBuilder.build
     val session = cluster.connect()
 

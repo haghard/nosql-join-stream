@@ -15,7 +15,7 @@
 package mongo.channel.test.cassandra
 
 import java.io.File
-import com.datastax.driver.core.BatchStatement
+import com.datastax.driver.core.{ ConsistencyLevel, QueryOptions, BatchStatement }
 import org.scalatest.{ Suite, BeforeAndAfterAll }
 
 import scala.concurrent.forkjoin.ThreadLocalRandom
@@ -90,12 +90,16 @@ trait TemperatureEnviroment extends CassandraEnviroment with BeforeAndAfterAll {
   val writeSensors = s"INSERT INTO ${KEYSPACE}.${SENSORS} (sensor, description) VALUES (?, ?)"
   val writeTemperature = s"INSERT INTO ${KEYSPACE}.${TEMPERATURE} (sensor, event_time, temperature) VALUES (?, ?, ?)"
 
+  val queryOps = new QueryOptions().setFetchSize(1000).setConsistencyLevel(ConsistencyLevel.ONE)
+
   override protected def beforeAll(): Unit = {
     val f = new File(getClass.getClassLoader.getResource("cassandra_network_strategy.yaml").getPath)
     CassandraServerHelper.startEmbeddedCassandra(f, "./cas-tmp", 10.seconds.toMillis)
 
     val clusterBuilder = com.datastax.driver.core.Cluster.builder
       .addContactPointsWithPorts(cassandraHost)
+      .withQueryOptions(queryOps)
+
     val cluster = clusterBuilder.build
     val session = cluster.connect()
 

@@ -12,8 +12,6 @@
  * limitations under the License.
  */
 
-/*
-
 package mongo.channel.test
 
 import java.net.InetSocketAddress
@@ -23,14 +21,16 @@ import _root_.join.cassandra.{ CassandraObservable, CassandraSource }
 import akka.actor.ActorSystem
 import akka.stream.{ ActorMaterializer, ActorMaterializerSettings }
 import akka.testkit.TestKit
+import com.datastax.driver.core.utils.Bytes
 import com.datastax.driver.core.{ QueryOptions, Cluster, ConsistencyLevel }
-import domain.formats.DomainEventFormats.ResultAddedFormat
+//import domain.formats.DomainEventFormats.ResultAddedFormat
 import mongo.NamedThreadFactory
 import org.scalatest.{ BeforeAndAfterAll, BeforeAndAfterEach, MustMatchers, WordSpecLike }
 import rx.lang.scala.Subscriber
 import rx.lang.scala.schedulers.ExecutionContextScheduler
 import scala.concurrent.ExecutionContext
 import scala.util.{ Failure, Success }
+/*
 
 class SportCenterSpec extends TestKit(ActorSystem("akka-join-stream")) with WordSpecLike with MustMatchers
     with BeforeAndAfterEach with BeforeAndAfterAll {
@@ -53,6 +53,8 @@ class SportCenterSpec extends TestKit(ActorSystem("akka-join-stream")) with Word
   implicit val Mat = ActorMaterializer(settings)
   implicit val dispatcher = system.dispatchers.lookup(dName)
 
+  implicit val executor = Executors.newFixedThreadPool(2, new NamedThreadFactory("sport-center-worker"))
+
   val queryByKey = """
      |SELECT * FROM sport_center_journal WHERE
      |        persistence_id = ? AND
@@ -62,10 +64,12 @@ class SportCenterSpec extends TestKit(ActorSystem("akka-join-stream")) with Word
 
   def deserialize(row: CassandraSource#Record): ResultAddedFormat =
     try {
-      val bts = row.getBytes("message").array()
+      val bts = Bytes.getArray(row.getBytes("message"))
       ResultAddedFormat parseFrom bts.slice(offset, bts.length)
     } catch {
-      case e: Exception ⇒ ResultAddedFormat.getDefaultInstance
+      case e: Exception ⇒
+        println(e.getMessage)
+        ResultAddedFormat.getDefaultInstance
     }
 
   "CassandraStream with sportCenter" should {
@@ -76,10 +80,10 @@ class SportCenterSpec extends TestKit(ActorSystem("akka-join-stream")) with Word
         .withQueryOptions(new QueryOptions().setConsistencyLevel(ConsistencyLevel.ONE))
         .build
 
-      implicit val session = client.connect("sport_center")
+      implicit val session = (client connect "sport_center")
 
-      val cleFeed = PartitionedLog[CassandraSource] from (queryByKey, "cle", 50)
-      val okcFeed = PartitionedLog[CassandraSource] from (queryByKey, "okc", 50)
+      val cleFeed = PartitionedLog[CassandraSource] from (queryByKey, "cle", 0)
+      val okcFeed = PartitionedLog[CassandraSource] from (queryByKey, "okc", 0)
       val future = (okcFeed.source ++ cleFeed.source)
         .runForeach { row ⇒
           val format = deserialize(row)
@@ -100,10 +104,10 @@ class SportCenterSpec extends TestKit(ActorSystem("akka-join-stream")) with Word
       1 === 1
     }
 
+    /*
     "CassandraObservable with sportCenter" in {
       val pageSize = 32
       val done = new CountDownLatch(1)
-      implicit val executor = Executors.newFixedThreadPool(4, new NamedThreadFactory("cassandra-worker"))
       val RxExecutor = ExecutionContextScheduler(ExecutionContext.fromExecutor(executor))
 
       val client = Cluster.builder
@@ -111,7 +115,7 @@ class SportCenterSpec extends TestKit(ActorSystem("akka-join-stream")) with Word
         .withQueryOptions(new QueryOptions().setConsistencyLevel(ConsistencyLevel.ONE))
         .build
 
-      implicit val session = client.connect("sport_center")
+      implicit val session = (client connect "sport_center")
 
       val cleObs = PartitionedLog[CassandraObservable] from (queryByKey, "cle", 10)
 
@@ -143,6 +147,7 @@ class SportCenterSpec extends TestKit(ActorSystem("akka-join-stream")) with Word
         .subscribe(S)
       done.await()
       1 === 1
-    }
+    }*/
   }
-}*/
+}
+*/

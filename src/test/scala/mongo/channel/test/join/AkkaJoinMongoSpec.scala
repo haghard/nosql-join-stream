@@ -68,7 +68,7 @@ class AkkaJoinMongoSpec extends TestKit(ActorSystem("akka-join-stream")) with Wo
     val latch = new CountDownLatch(1)
     val resRef = new AtomicReference(List.empty[String])
 
-    val joinSource = Join[MongoSource].left(qLang, LANGS, qProg(_), PROGRAMMERS, TEST_DB)(cmb)
+    val joinSource = Join[MongoSource].inner(qLang, LANGS, qProg(_), PROGRAMMERS, TEST_DB)(cmb)
 
     val futureSeq = joinSource.source
       .runFold(List.empty[String]) { (acc, cur) ⇒ cur :: acc }

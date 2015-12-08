@@ -23,7 +23,7 @@ import java.util.concurrent.{ TimeUnit, CountDownLatch }
 import java.util.concurrent.atomic.{ AtomicLong, AtomicReference }
 import org.scalatest.{ Matchers, WordSpecLike }
 import join.cassandra.{ CassandraObsFetchError, CassandraObservable, CassandraProcess, CassandraObsCursorError }
-import com.datastax.driver.core.{ Cluster, Row ⇒ CRow }
+import com.datastax.driver.core.{ Row ⇒ CRow, ConsistencyLevel, QueryOptions, Cluster }
 import mongo.channel.test.cassandra.TemperatureEnviroment
 import rx.lang.scala.schedulers.ExecutionContextScheduler
 import scala.concurrent.ExecutionContext
@@ -53,9 +53,13 @@ class JoinCassandraSpec extends WordSpecLike with Matchers with TemperatureEnvir
       val buffer = mutable.Buffer.empty[String]
       val BufferSink = io.fillBuffer(buffer)
       val LoggerS = lift[Task, String] { line ⇒ Task.delay(logger.info(line)) }
-      implicit val client: C#Client = Cluster.builder().addContactPointsWithPorts(cassandraHost).build
 
-      val join = (Join[CassandraProcess] left (qSensors, SENSORS, qTemperature, TEMPERATURE, KEYSPACE))(cmb)
+      implicit val client: C#Client = Cluster.builder()
+        .addContactPointsWithPorts(cassandraHost)
+        .withQueryOptions(queryOps)
+        .build
+
+      val join = (Join[CassandraProcess] inner (qSensors, SENSORS, qTemperature, TEMPERATURE, KEYSPACE))(cmb)
 
       (for {
         row ← P.eval(Task.now(client connect KEYSPACE)) through join.out
@@ -80,9 +84,14 @@ class JoinCassandraSpec extends WordSpecLike with Matchers with TemperatureEnvir
       val pageSize = 7
       val count = new AtomicLong(0)
       val done = new CountDownLatch(1)
-      implicit val client = Cluster.builder().addContactPointsWithPorts(cassandraHost).build
+
+      implicit val client = Cluster.builder()
+        .addContactPointsWithPorts(cassandraHost)
+        .withQueryOptions(queryOps)
+        .build
+
       val state = new AtomicReference(Vector.empty[String])
-      val join = (Join[CassandraObservable] left (qSensors, SENSORS, qTemperature, TEMPERATURE, KEYSPACE))(cmb)
+      val join = (Join[CassandraObservable] inner (qSensors, SENSORS, qTemperature, TEMPERATURE, KEYSPACE))(cmb)
 
       val S = new Subscriber[String] {
         override def onStart() = request(pageSize)
@@ -123,8 +132,12 @@ class JoinCassandraSpec extends WordSpecLike with Matchers with TemperatureEnvir
   "Join with CassandraObservable onError while we try to create a cursor" should {
     "have error" in {
       val latch = new CountDownLatch(1)
-      implicit val client = Cluster.builder().addContactPointsWithPorts(cassandraHost).build
-      val join = (Join[CassandraObsCursorError] left (qSensors, SENSORS, qTemperature, TEMPERATURE, KEYSPACE))(cmb)
+      implicit val client = Cluster.builder()
+        .addContactPointsWithPorts(cassandraHost)
+        .withQueryOptions(queryOps)
+        .build
+
+      val join = (Join[CassandraObsCursorError] inner (qSensors, SENSORS, qTemperature, TEMPERATURE, KEYSPACE))(cmb)
 
       val S = new Subscriber[String] {
         override def onStart() = request(1)
@@ -155,8 +168,12 @@ class JoinCassandraSpec extends WordSpecLike with Matchers with TemperatureEnvir
   "Join with CassandraObsFetchError onError while we trying to fetch records" should {
     "have error" in {
       val done = new CountDownLatch(1)
-      implicit val client = Cluster.builder().addContactPointsWithPorts(cassandraHost).build
-      val join = (Join[CassandraObsFetchError] left (qSensors, SENSORS, qTemperature, TEMPERATURE, KEYSPACE))(cmb)
+      implicit val client = Cluster.builder()
+        .addContactPointsWithPorts(cassandraHost)
+        .withQueryOptions(queryOps)
+        .build
+
+      val join = (Join[CassandraObsFetchError] inner (qSensors, SENSORS, qTemperature, TEMPERATURE, KEYSPACE))(cmb)
 
       val S = new Subscriber[String] {
         override def onStart() = request(1)

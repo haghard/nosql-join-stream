@@ -25,7 +25,7 @@ import log.PartitionedLog
 import mongo.channel.test.cassandra.DomainEnviroment
 import org.scalatest.{ MustMatchers, WordSpecLike }
 
-class AkkaCassandraFeedSpec extends TestKit(ActorSystem("akka-feed-stream"))
+class AkkaCassandraPartitionedLogSpec extends TestKit(ActorSystem("akka-log-stream"))
     with WordSpecLike with MustMatchers with DomainEnviroment {
 
   val settings = ActorMaterializerSettings(system)
@@ -39,7 +39,10 @@ class AkkaCassandraFeedSpec extends TestKit(ActorSystem("akka-feed-stream"))
       val latch = new CountDownLatch(1)
       val count = new AtomicLong(0)
 
-      val clusterBuilder = com.datastax.driver.core.Cluster.builder.addContactPointsWithPorts(cassandraHost)
+      val clusterBuilder = com.datastax.driver.core.Cluster.builder
+        .addContactPointsWithPorts(cassandraHost)
+        .withQueryOptions(queryOps)
+
       val client = clusterBuilder.build
       implicit val session = clusterBuilder.build.connect("journal")
 

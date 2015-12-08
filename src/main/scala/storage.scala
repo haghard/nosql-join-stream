@@ -161,7 +161,7 @@ package object storage {
         if (i < n && c.hasNext && !subscriber.isUnsubscribed) {
           (subscriber onNext c.next)
           if(seqNum.incrementAndGet() % maxPartitionSize == 0) {
-            cursorRef.set(cursor)//switch on next partition
+            (cursorRef set cursor)//switch on next partition
           }
           loop(n, i + 1, c)
         }
@@ -594,7 +594,7 @@ package object storage {
             qs.skip.foreach(c.skip)
             qs.limit.foreach(c.limit)
           }
-          logger.debug(s" mongo-join-process from $collection Sort:[ ${qs.sort} ] Skip:[ ${qs.skip} ] Limit:[ ${qs.limit} ] Query:[ ${qs.query} ]")
+          logger.debug(s"mongo-join-process from $collection Sort:[ ${qs.sort} ] Skip:[ ${qs.skip} ] Limit:[ ${qs.limit} ] Query:[ ${qs.query} ]")
           cursor
         })(c ⇒ Task.delay {
           logger.info(s"The cursor has been closed")
@@ -645,27 +645,49 @@ package object storage {
           attributes.v.fold(session.execute(query).iterator()) { r ⇒
             (session execute(query, r.v)).iterator()
           }
-        })(c ⇒ Task.delay(logger.debug("★ ★ ★ The cursor has been exhausted ★ ★ ★"))) { c ⇒
+        })(c ⇒ Task.delay(logger.debug("★ ★ ★ The cursor has been exhausted"))) { c ⇒
           Task.delay {
-            if (c.hasNext) {
-              val r = c.next
-              logger.debug(s"fetch $r")
-              r
-            } else throw Cause.Terminated(Cause.End)
+            if (c.hasNext) c.next
+            else throw Cause.Terminated(Cause.End)
           }
         }
 
-      override def log(session: T#Session, query: String, key: String, offset: Long, maxPartitionSize: Long,
-                       log: Logger, ctx: T#Context): ScalazChannel[T#Session, T#Record] = {
-        def newIter(seqNum: Long): T#Cursor = {
-          val cassandraQuery = MessageFormat.format(query, key)
-          val p = navigatePartition(seqNum, maxPartitionSize)
-          //log.debug(s"★ ★ ★ cassandra-log-process query $query Key:$key Partition: $p - seqNum: $seqNum")
-          (session.execute(cassandraQuery, key: String, p: JLong, seqNum: JLong)).iterator()
+
+      class PartitionedIterator(session: CassandraSource#Session, query: String, key: String, offset: Long,
+                                maxPartitionSize: Long, log: Logger) extends Iterator[CassandraSource#Record]() {
+        private var seqNum = offset
+        private var cursor = newIter(seqNum)
+
+        private def newIter(n: Long) = {
+          val p = navigatePartition(n, maxPartitionSize)
+          (session execute(query, key: String, p:JLong,  n: JLong)).iterator()
         }
 
+        override def hasNext = cursor.hasNext
+
+        override def next() = {
+          val row = cursor.next()
+          seqNum += 1
+          if(seqNum % maxPartitionSize == 0) {
+            cursor = newIter(seqNum)
+          }
+          row
+        }
+      }
+
+      override def log(session: T#Session, query: String, key: String, offset: Long, maxPartitionSize: Long,
+                       log: Logger, ctx: T#Context): ScalazChannel[T#Session, T#Record] = {
+        /*
+        def newIter(n: Long): T#Cursor = {
+          val cassandraQuery = MessageFormat.format(query, key)
+          val p = navigatePartition(n, maxPartitionSize)
+          //log.debug(s"★ ★ ★ cassandra-log-process query $query Key:$key Partition: $p - seqNum: $seqNum")
+          (session.execute(cassandraQuery, key: String, p: JLong, n: JLong)).iterator()
+        }*/
+
         ScalazChannel[T#Session, T#Record](Process.eval(Task { session: T#Session ⇒
-          Task.delay {
+          Task.delay { io.iterator(Task.delay(new PartitionedIterator(session, query, key, offset, maxPartitionSize, log))) }
+            /*
             def loop(seqNum: Long, iter: T#Cursor): Process[Task, T#Record] = {
               def partitionLoop(seqNum: Long, iter: T#Cursor): Process[Task, T#Record] =
                 if(iter.hasNext) Process.emit(iter.next()) ++ partitionLoop(seqNum + 1, iter)
@@ -674,7 +696,7 @@ package object storage {
               if (iter.hasNext) partitionLoop(seqNum, iter) else Process.halt
             }
             loop(offset, newIter(offset))
-          }
+            */
         }(ctx)))
       }
 
