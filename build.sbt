@@ -41,7 +41,8 @@ scalacOptions ++= Seq(
 
 
 val MongoDriverVersion = "3.0.2"
-val CassandraDriverVersion = "3.0.0-alpha4" //to be equal to spark-cassandra-connector
+//val CassandraDriverVersion = "3.0.0-alpha4" //to be equal to spark-cassandra-connector M3
+val CassandraDriverVersion = "2.2.0-rc3" //to be equal to spark-cassandra-connector M2
 val ScalazStreamVersion = "0.8"
 val RxScala = "0.25.0"
 val AkkaStreams = "2.0-M2"
@@ -71,7 +72,6 @@ libraryDependencies ++= Seq(
   "io.reactivex"           %%  "rxscala"                  %   RxScala                withSources(),
   "com.typesafe.akka"      %%  "akka-stream-experimental" %   AkkaStreams            withSources(),
   "com.google.protobuf"    %   "protobuf-java"            %  "2.5.0"                 withSources()
-  //"ch.qos.logback"         %   "logback-classic"          %   Logback
 )
 
 
@@ -82,7 +82,8 @@ libraryDependencies ++= Seq(
   "org.specs2"          %%  "specs2-core"       %   "2.4.17"  % "test" withSources(),
   "org.scalatest"       %%  "scalatest"         %   "2.2.5"   % "test",
   "com.typesafe.akka"   %%  "akka-testkit"      %   Akka      % "test",
-  "com.typesafe.akka"   %%  "akka-slf4j"        %   Akka      % "test"
+  "com.typesafe.akka"   %%  "akka-slf4j"        %   Akka      % "test",
+  "ch.qos.logback"      %   "logback-classic"   %   Logback
 )
 
 scalacOptions ++= Seq(
