@@ -25,7 +25,6 @@ import scala.collection.mutable
 import scalaz.concurrent.Task
 import scalaz.stream.io
 import scalaz.stream.sink._
-import log.PartitionedLog
 
 class PartitionedLogCassandraSpec extends WordSpecLike with MustMatchers with DomainEnviroment {
   val pageSize = 16
@@ -59,7 +58,7 @@ class PartitionedLogCassandraSpec extends WordSpecLike with MustMatchers with Do
         .build
       implicit val session = (client connect "journal")
 
-      (PartitionedLog[CassandraObservable] from (queryByKey, actors.head, 5, maxPartitionSize))
+      (eventlog.Log[CassandraObservable] from (queryByKey, actors.head, 5, maxPartitionSize))
         .observeOn(RxExecutor)
         .subscribe(subscriber(count, latch))
 
@@ -85,7 +84,7 @@ class PartitionedLogCassandraSpec extends WordSpecLike with MustMatchers with Do
         Task.delay { logger.info(s"${row.getString(0)}:${row.getLong(2)}") }
       }
 
-      val log = (PartitionedLog[T] from (queryByKey, actors(0), 0, maxPartitionSize))
+      val log = (eventlog.Log[T] from (queryByKey, actors(0), 0, maxPartitionSize))
 
       (for {
         row ← (eval(Task.now(session)) through log.out)
@@ -118,8 +117,8 @@ class PartitionedLogCassandraSpec extends WordSpecLike with MustMatchers with Do
         }
       }
 
-      val log0 = (PartitionedLog[T] from (queryByKey, actors(0), 3, maxPartitionSize))
-      val log1 = (PartitionedLog[T] from (queryByKey, actors(1), 15, maxPartitionSize))
+      val log0 = (eventlog.Log[T] from (queryByKey, actors(0), 3, maxPartitionSize))
+      val log1 = (eventlog.Log[T] from (queryByKey, actors(1), 15, maxPartitionSize))
 
       (eval(Task.now(session)) through (log0 zip log1).out)
         .flatMap { p ⇒

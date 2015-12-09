@@ -21,7 +21,6 @@ import akka.actor.ActorSystem
 import akka.stream.{ ActorMaterializer, ActorMaterializerSettings }
 import akka.testkit.TestKit
 import join.cassandra.CassandraSource
-import log.PartitionedLog
 import mongo.channel.test.cassandra.DomainEnviroment
 import org.scalatest.{ MustMatchers, WordSpecLike }
 
@@ -46,7 +45,7 @@ class AkkaCassandraPartitionedLogSpec extends TestKit(ActorSystem("akka-log-stre
       val client = clusterBuilder.build
       implicit val session = clusterBuilder.build.connect("journal")
 
-      (PartitionedLog[CassandraSource] from (queryByKey, actors.head, 5, maxPartitionSize))
+      (eventlog.Log[CassandraSource] from (queryByKey, actors.head, 5, maxPartitionSize))
         .source
         .runForeach { row ⇒
           count.incrementAndGet()

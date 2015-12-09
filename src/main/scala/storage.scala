@@ -291,7 +291,7 @@ package object storage {
 
   object DbIterator {
 
-    case class CassandraIterator(settings: QFree[CassandraSource#QueryAttributes], session: CassandraSource#Session,
+    private[storage] case class CassandraIterator(settings: QFree[CassandraSource#QueryAttributes], session: CassandraSource#Session,
                                  collection: String, logger: Logger) extends DbIterator[CassandraSource] {
       override val attributes = (implicitly[QueryInterpreter[CassandraProcess]] interpret settings)
       override val cursor = {
@@ -302,7 +302,7 @@ package object storage {
       }
     }
 
-    case class MongoIterator(settings: QFree[MongoSource#QueryAttributes], session: MongoSource#Session,
+    private[storage] case class MongoIterator(settings: QFree[MongoSource#QueryAttributes], session: MongoSource#Session,
                              collection: String, logger: Logger) extends DbIterator[MongoSource] {
       override val attributes = (implicitly[QueryInterpreter[MongoProcess]] interpret settings)
       override val cursor = {
@@ -316,7 +316,7 @@ package object storage {
       }
     }
 
-    case class CassandraStreamIterator(session: CassandraSource#Session, query: String, key: String, offset: Long,
+    private[storage] case class CassandraStreamIterator(session: CassandraSource#Session, query: String, key: String, offset: Long,
                                        maxPartitionSize: Long, log: Logger) extends Iterator[CassandraSource#Record]() {
       val seqNum = new AtomicLong(offset)
       val cursorRef = new AtomicReference[CassandraSource#Cursor](newIter)
@@ -652,13 +652,13 @@ package object storage {
           }
         }
 
-
-      class PartitionedIterator(session: CassandraSource#Session, query: String, key: String, offset: Long,
-                                maxPartitionSize: Long, log: Logger) extends Iterator[CassandraSource#Record]() {
+      private[storage] class PartitionedIterator(session: CassandraSource#Session, query: String,
+                                                 key: String, offset: Long, maxPartitionSize: Long,
+                                                 log: Logger) extends Iterator[CassandraSource#Record]() {
         private var seqNum = offset
-        private var cursor = newIter(seqNum)
+        private var cursor = newPartitionIter(seqNum)
 
-        private def newIter(n: Long) = {
+        private def newPartitionIter(n: Long) = {
           val p = navigatePartition(n, maxPartitionSize)
           (session execute(query, key: String, p:JLong,  n: JLong)).iterator()
         }
@@ -669,7 +669,7 @@ package object storage {
           val row = cursor.next()
           seqNum += 1
           if(seqNum % maxPartitionSize == 0) {
-            cursor = newIter(seqNum)
+            cursor = newPartitionIter(seqNum)
           }
           row
         }
@@ -677,26 +677,26 @@ package object storage {
 
       override def log(session: T#Session, query: String, key: String, offset: Long, maxPartitionSize: Long,
                        log: Logger, ctx: T#Context): ScalazChannel[T#Session, T#Record] = {
+        ScalazChannel[T#Session, T#Record](Process.eval(Task { session: T#Session ⇒
+          Task.delay(io.iterator(Task.delay(new PartitionedIterator(session, query, key, offset, maxPartitionSize, log))))
+
         /*
         def newIter(n: Long): T#Cursor = {
           val cassandraQuery = MessageFormat.format(query, key)
           val p = navigatePartition(n, maxPartitionSize)
           //log.debug(s"★ ★ ★ cassandra-log-process query $query Key:$key Partition: $p - seqNum: $seqNum")
           (session.execute(cassandraQuery, key: String, p: JLong, n: JLong)).iterator()
-        }*/
+        }
 
-        ScalazChannel[T#Session, T#Record](Process.eval(Task { session: T#Session ⇒
-          Task.delay { io.iterator(Task.delay(new PartitionedIterator(session, query, key, offset, maxPartitionSize, log))) }
-            /*
-            def loop(seqNum: Long, iter: T#Cursor): Process[Task, T#Record] = {
-              def partitionLoop(seqNum: Long, iter: T#Cursor): Process[Task, T#Record] =
-                if(iter.hasNext) Process.emit(iter.next()) ++ partitionLoop(seqNum + 1, iter)
-                else loop(seqNum, newIter(seqNum))
+        def loop(seqNum: Long, iter: T#Cursor): Process[Task, T#Record] = {
+          def partitionLoop(seqNum: Long, iter: T#Cursor): Process[Task, T#Record] =
+            if(iter.hasNext) Process.emit(iter.next()) ++ partitionLoop(seqNum + 1, iter)
+            else loop(seqNum, newIter(seqNum))
 
-              if (iter.hasNext) partitionLoop(seqNum, iter) else Process.halt
-            }
-            loop(offset, newIter(offset))
-            */
+          if (iter.hasNext) partitionLoop(seqNum, iter) else Process.halt
+        }
+        loop(offset, newIter(offset))
+        */
         }(ctx)))
       }
 

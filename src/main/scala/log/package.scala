@@ -17,7 +17,7 @@ import storage.Storage
 
 import scala.reflect.ClassTag
 
-package object log {
+package object eventlog {
 
   /*
      Based on akka-cassandra-persistence schema
@@ -47,7 +47,7 @@ package object log {
      Log with iterator that goes across partition_nr for specific persistence_id
 
     */
-  case class PartitionedLog[M <: StorageModule : Storage](implicit ctx: M#Context, session: M#Session, t: ClassTag[M]) {
+  case class Log[M <: StorageModule : Storage](implicit ctx: M#Context, session: M#Session, t: ClassTag[M]) {
     implicit val logger = org.slf4j.LoggerFactory.getLogger(s"${t.runtimeClass.getName.dropWhile(_ != '$').drop(1)}-source-producer")
 
     def from(query: String, key: String, offset: Long = 0, maxPartitionSize: Long = 5000000l): M#Stream[M#Record] = {

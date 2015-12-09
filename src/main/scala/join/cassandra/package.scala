@@ -27,19 +27,21 @@ package object cassandra {
     override type Record = com.datastax.driver.core.Row
     override type QueryAttributes = CassandraReadSettings
     override type Cursor = java.util.Iterator[com.datastax.driver.core.Row]
-    override type Context = java.util.concurrent.ExecutorService
   }
 
   trait CassandraObservable extends Cassandra {
     override type Stream[Out] = rx.lang.scala.Observable[Out]
+    override type Context = java.util.concurrent.ExecutorService
   }
 
   trait CassandraProcess extends Cassandra {
     override type Stream[Out] = _root_.mongo.channel.ScalazChannel[Session, Out]
+    override type Context = java.util.concurrent.ExecutorService
   }
 
   trait CassandraSource extends Cassandra {
     override type Stream[Out] = _root_.mongo.channel.AkkaChannel[Out, Unit]
+    override type Context = scala.concurrent.ExecutionContext
   }
 
   trait CassandraObsCursorError extends CassandraObservable
