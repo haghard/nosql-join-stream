@@ -73,7 +73,8 @@ libraryDependencies ++= Seq(
   "org.scalaz.stream"      %%  "scalaz-stream"            %   ScalazStreamVersion    withSources(),
   "io.reactivex"           %%  "rxscala"                  %   RxScala                withSources(),
   "com.typesafe.akka"      %%  "akka-stream-experimental" %   AkkaStreams            withSources(),
-  "com.google.protobuf"    %   "protobuf-java"            %  "2.5.0"                 withSources()
+  "com.google.protobuf"    %   "protobuf-java"            %  "2.5.0"                 withSources(),
+  "ch.qos.logback"         %   "logback-classic"          %   Logback //should be commented for releases
 )
 
 
@@ -84,8 +85,7 @@ libraryDependencies ++= Seq(
   "org.specs2"          %%  "specs2-core"       %   "2.4.17"  % "test" withSources(),
   "org.scalatest"       %%  "scalatest"         %   "2.2.5"   % "test",
   "com.typesafe.akka"   %%  "akka-testkit"      %   Akka      % "test",
-  "com.typesafe.akka"   %%  "akka-slf4j"        %   Akka      % "test",
-  "ch.qos.logback"      %   "logback-classic"   %   Logback   % "test"
+  "com.typesafe.akka"   %%  "akka-slf4j"        %   Akka      % "test"
 )
 
 scalacOptions ++= Seq(
