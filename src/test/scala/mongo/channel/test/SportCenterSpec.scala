@@ -11,6 +11,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+/*
 
 package mongo.channel.test
 
@@ -30,12 +31,10 @@ import rx.lang.scala.Subscriber
 import rx.lang.scala.schedulers.ExecutionContextScheduler
 import scala.concurrent.ExecutionContext
 import scala.util.{ Failure, Success }
-/*
 
 class SportCenterSpec extends TestKit(ActorSystem("akka-join-stream")) with WordSpecLike with MustMatchers
     with BeforeAndAfterEach with BeforeAndAfterAll {
 
-  import log._
   import scala.collection.JavaConverters._
 
   val offset = 8
@@ -46,7 +45,7 @@ class SportCenterSpec extends TestKit(ActorSystem("akka-join-stream")) with Word
 
   val idField = "persistence_id"
   val cassandraHost0 = "192.168.0.134"
-  val cassandraHost1 = "192.168.0.11"
+  val cassandraHost1 = "192.168.0.82"
   val cassandraPort = 9042
   val hosts = List(new InetSocketAddress(cassandraHost0, cassandraPort), new InetSocketAddress(cassandraHost1, cassandraPort)).asJava
   val settings = ActorMaterializerSettings(system).withInputBuffer(1, 1).withDispatcher(dName)
@@ -62,14 +61,14 @@ class SportCenterSpec extends TestKit(ActorSystem("akka-join-stream")) with Word
      |        sequence_nr >= ?
    """.stripMargin
 
-  def deserialize(row: CassandraSource#Record): ResultAddedFormat =
+  def deserialize(row: CassandraSource#Record): domain.formats.DomainEventFormats.ResultAddedFormat =
     try {
       val bts = Bytes.getArray(row.getBytes("message"))
-      ResultAddedFormat parseFrom bts.slice(offset, bts.length)
+      domain.formats.DomainEventFormats.ResultAddedFormat parseFrom bts.slice(offset, bts.length)
     } catch {
       case e: Exception ⇒
         println(e.getMessage)
-        ResultAddedFormat.getDefaultInstance
+        domain.formats.DomainEventFormats.ResultAddedFormat.getDefaultInstance
     }
 
   "CassandraStream with sportCenter" should {
@@ -82,8 +81,8 @@ class SportCenterSpec extends TestKit(ActorSystem("akka-join-stream")) with Word
 
       implicit val session = (client connect "sport_center")
 
-      val cleFeed = PartitionedLog[CassandraSource] from (queryByKey, "cle", 0)
-      val okcFeed = PartitionedLog[CassandraSource] from (queryByKey, "okc", 0)
+      val cleFeed = eventlog.Log[CassandraSource] from (queryByKey, "cle", 0)
+      val okcFeed = eventlog.Log[CassandraSource] from (queryByKey, "okc", 0)
       val future = (okcFeed.source ++ cleFeed.source)
         .runForeach { row ⇒
           val format = deserialize(row)
@@ -117,7 +116,7 @@ class SportCenterSpec extends TestKit(ActorSystem("akka-join-stream")) with Word
 
       implicit val session = (client connect "sport_center")
 
-      val cleObs = PartitionedLog[CassandraObservable] from (queryByKey, "cle", 10)
+      val cleObs = eventlog.Log[CassandraObservable] from (queryByKey, "cle", 10)
 
       val S = new Subscriber[CassandraObservable#Record] {
         val count = new AtomicInteger(0)

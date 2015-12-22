@@ -374,7 +374,7 @@ package object storage {
 
       override def outer(qs: QFree[T#QueryAttributes], collection: String, log: Logger, ctx: T#Context): (T#Session) => T#Stream[T#Record] =
         session =>
-          AkkaChannel(Source(() => DbIterator.cassandraJoin(qs, session, collection, log)))
+          AkkaChannel(Source.fromIterator(() => DbIterator.cassandraJoin(qs, session, collection, log)))
 
       override def inner(r: (T#Record) => QFree[T#QueryAttributes], collection: String, log: Logger, ctx: CassandraSource#Context):
         (T#Session) =>
@@ -382,12 +382,12 @@ package object storage {
             T#Stream[T#Record] = {
               session =>
                 outer =>
-                  AkkaChannel(Source(() => DbIterator.cassandraJoin(r(outer), session, collection, log)))
+                  AkkaChannel(Source.fromIterator(() => DbIterator.cassandraJoin(r(outer), session, collection, log)))
       }
 
       override def log(session: T#Session, query: String, key: String, offset: Long, maxPartitionSize: Long, log: Logger,
                        ctx: T#Context): T#Stream[T#Record] =
-        AkkaChannel(Source(() => DbIterator.cassandraStream(session,query,key, offset, maxPartitionSize, log)))
+        AkkaChannel(Source.fromIterator(() => DbIterator.cassandraStream(session,query,key, offset, maxPartitionSize, log)))
     }
 
     implicit object MongoStorageAkkaStream extends Storage[MongoSource] {
@@ -399,13 +399,13 @@ package object storage {
       override def outer(qs: QFree[T#QueryAttributes], collection: String, log: Logger, ctx: MongoSource#Context):
                          (T#Session) => T#Stream[T#Record] =
         session =>
-          AkkaChannel(Source(() => DbIterator.mongoJoin(qs, session, collection, log)))
+          AkkaChannel(Source.fromIterator(() => DbIterator.mongoJoin(qs, session, collection, log)))
 
       override def inner(relation: (T#Record) => QFree[T#QueryAttributes], collection: String, log: Logger, ctx: T#Context):
         (T#Session) => (T#Record) => T#Stream[T#Record] =
           session =>
              outer =>
-               AkkaChannel(Source(() => DbIterator.mongoJoin(relation(outer), session, collection, log)))
+               AkkaChannel(Source.fromIterator(() => DbIterator.mongoJoin(relation(outer), session, collection, log)))
 
       override def log(session: DB, query: String, key: String, offset: Long, maxPartitionSize: Long,
                        log: Logger, ctx: ExecutionContext): AkkaChannel[DBObject, Unit] = ???

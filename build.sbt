@@ -41,11 +41,13 @@ scalacOptions ++= Seq(
 
 
 val MongoDriverVersion = "3.0.2"
+val CassandraDriverVersion = "3.0.0-alpha5" //to be equal to akka-cassandra-pers 0.6
 //val CassandraDriverVersion = "3.0.0-alpha4" //to be equal to spark-cassandra-connector M3
-val CassandraDriverVersion = "2.2.0-rc3" //to be equal to spark-cassandra-connector M2
+//val CassandraDriverVersion = "2.2.0-rc3" //to be equal to spark-cassandra-connector M2
+
 val ScalazStreamVersion = "0.8"
 val RxScala = "0.25.0"
-val AkkaStreams = "2.0-M2"
+val AkkaStreams = "2.0"
 val Akka = "2.4.0"
 val Logback = "1.1.2"
 
@@ -77,13 +79,13 @@ libraryDependencies ++= Seq(
 
 //JoinMongoSpec failed with specs2-core 3.6.4
 libraryDependencies ++= Seq(
-  "de.bwaldvogel"       %   "mongo-java-server" %   "1.4.4"   % "test" withSources(),
+  "de.bwaldvogel"        %   "mongo-java-server" %   "1.4.4"   % "test" withSources(),
   "org.cassandraunit"   % "cassandra-unit"      %   "2.0.2.2" % "test" excludeAll(ExclusionRule(organization = "ch.qos.logback")),
   "org.specs2"          %%  "specs2-core"       %   "2.4.17"  % "test" withSources(),
   "org.scalatest"       %%  "scalatest"         %   "2.2.5"   % "test",
   "com.typesafe.akka"   %%  "akka-testkit"      %   Akka      % "test",
   "com.typesafe.akka"   %%  "akka-slf4j"        %   Akka      % "test",
-  "ch.qos.logback"      %   "logback-classic"   %   Logback
+  "ch.qos.logback"      %   "logback-classic"   %   Logback   % "test"
 )
 
 scalacOptions ++= Seq(

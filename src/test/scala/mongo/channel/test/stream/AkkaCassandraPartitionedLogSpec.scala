@@ -33,7 +33,7 @@ class AkkaCassandraPartitionedLogSpec extends TestKit(ActorSystem("akka-log-stre
   implicit val Mat = ActorMaterializer(settings)
   implicit val dispatcher = system.dispatchers.lookup("akka.join-dispatcher")
 
-  "FeedCassandra" must {
+  "EventLogCassandra" must {
     "run with CassandraSource" in {
       val latch = new CountDownLatch(1)
       val count = new AtomicLong(0)
@@ -43,7 +43,7 @@ class AkkaCassandraPartitionedLogSpec extends TestKit(ActorSystem("akka-log-stre
         .withQueryOptions(queryOps)
 
       val client = clusterBuilder.build
-      implicit val session = clusterBuilder.build.connect("journal")
+      implicit val session = (client connect "journal")
 
       (eventlog.Log[CassandraSource] from (queryByKey, actors.head, 5, maxPartitionSize))
         .source
