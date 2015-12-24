@@ -8,7 +8,7 @@ organization := "com.haghard"
 
 name := "nosql-join-stream"
 
-version := "0.1.6-SNAPSHOT"
+version := "0.1.7-SNAPSHOT"
 
 scalaVersion := "2.11.7"
 
@@ -73,8 +73,8 @@ libraryDependencies ++= Seq(
   "org.scalaz.stream"      %%  "scalaz-stream"            %   ScalazStreamVersion    withSources(),
   "io.reactivex"           %%  "rxscala"                  %   RxScala                withSources(),
   "com.typesafe.akka"      %%  "akka-stream-experimental" %   AkkaStreams            withSources(),
-  "com.google.protobuf"    %   "protobuf-java"            %  "2.5.0"                 withSources(),
-  "ch.qos.logback"         %   "logback-classic"          %   Logback //should be commented for releases
+  "com.google.protobuf"    %   "protobuf-java"            %  "2.5.0"                 withSources()
+  //"ch.qos.logback"         %   "logback-classic"          %   Logback //should be commented for releases
 )
 
 
