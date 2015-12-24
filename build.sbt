@@ -47,8 +47,8 @@ val CassandraDriverVersion = "3.0.0-alpha5" //to be equal to akka-cassandra-pers
 
 val ScalazStreamVersion = "0.8"
 val RxScala = "0.25.0"
-val AkkaStreams = "2.0"
-val Akka = "2.4.0"
+val AkkaStreams = "2.0.1"
+val Akka = "2.4.1"
 val Logback = "1.1.2"
 
 val localMvnRepo = "/Volumes/Data/dev_build_tools/apache-maven-3.1.1/repository"
@@ -137,6 +137,8 @@ headers := Map(
       |""".stripMargin
     )
 )
+
+cancelable in Global := true
 
 //create/update for Compile and Test configurations, add the following settings to your build
 inConfig(Compile)(compileInputs.in(compile) <<= compileInputs.in(compile).dependsOn(createHeaders.in(compile)))
