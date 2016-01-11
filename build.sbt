@@ -41,7 +41,8 @@ scalacOptions ++= Seq(
 
 
 val MongoDriverVersion = "3.0.2"
-val CassandraDriverVersion = "3.0.0-alpha5" //to be equal to akka-cassandra-pers 0.6
+val CassandraDriverVersion = "3.0.0-rc1"
+//val CassandraDriverVersion = "3.0.0-alpha5" //to be equal to akka-cassandra-pers 0.6
 //val CassandraDriverVersion = "3.0.0-alpha4" //to be equal to spark-cassandra-connector M3
 //val CassandraDriverVersion = "2.2.0-rc3" //to be equal to spark-cassandra-connector M2
 
@@ -73,8 +74,8 @@ libraryDependencies ++= Seq(
   "org.scalaz.stream"      %%  "scalaz-stream"            %   ScalazStreamVersion    withSources(),
   "io.reactivex"           %%  "rxscala"                  %   RxScala                withSources(),
   "com.typesafe.akka"      %%  "akka-stream-experimental" %   AkkaStreams            withSources(),
-  "com.google.protobuf"    %   "protobuf-java"            %  "2.5.0"                 withSources()
-  //"ch.qos.logback"         %   "logback-classic"          %   Logback //should be commented for releases
+  "com.google.protobuf"    %   "protobuf-java"            %  "2.5.0"                 withSources(),
+  "ch.qos.logback"         %   "logback-classic"          %   Logback //should be commented for releases
 )
 
 

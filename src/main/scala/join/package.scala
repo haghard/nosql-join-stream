@@ -75,7 +75,7 @@ package object join {
 
     implicit object MongoP extends Joiner[MongoProcess] {
       type T = MongoProcess
-      def join[A, B, C](outer: T#Stream[A])(relation: A ⇒ T#Stream[B])
+      override def join[A, B, C](outer: T#Stream[A])(relation: A ⇒ T#Stream[B])
                        (mapper: (A, B) ⇒ C)
                        (implicit ctx: T#Context): T#Stream[C] =
         for { id ← outer; rs ← relation(id).map(mapper(id, _)) } yield rs
