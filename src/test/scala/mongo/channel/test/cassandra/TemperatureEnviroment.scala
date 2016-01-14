@@ -36,35 +36,21 @@ trait TemperatureEnviroment extends CassandraEnviroment with BeforeAndAfterAll {
   val measureSize = 100
 
   /**
-   * Partition key - day, sensor)
-   * Clustering key - event_time
-   * Optimized for search based on (day, sensor)
-   *
-   */
-  /*
-  val createTableTemperature =
-    """CREATE TABLE IF NOT EXISTS journal.temperature_by_day
-      |(day text, sensor uuid, event_time timestamp, temperature double
-      |PRIMARY KEY ((day, sensor), event_time))
-      |WITH CLUSTERING ORDER by event_time DESC""".stripMargin
-  */
-
-  /**
    *
    * Row size = {{sensors.size}}
    * All measures by sensor are grouped in single row
    *
-   *     +---------------+---------------+----------------+
-   *     |111:temperature|112:temperature|113:temperature |
-   * +---+---------------+---------------+----------------+
-   * | 1 |32.1           |35.9           |36.9            |
-   * +---+---------------+---------------+----------------+
+   *     +------------------------------+-------------------------------+
+   *     |2015Apr12-12:10:01:temperature|2015Apr12-12:10:02:temperature |
+   * +---+------------------------------+-------------------------------+
+   * | 1 |32.1                          |35.9                           |
+   * +---+------------------------------+-------------------------------+
    *
-   *     +---------------+---------------+----------------+
-   *     |111:temperature|112:temperature|113:temperature |
-   * +---+---------------+---------------+----------------+
-   * | 2 |37.0           |36.0           |37.7            |
-   * +---+---------------+---------------+----------------+
+   *     +------------------------------+------------------------------+
+   *     |2015Apr12-12:10:01:temperature|2015Apr12-12:10:05:temperature|
+   * +---+------------------------------+------------------------------+
+   * | 2 |37.0                          |36.0                          |
+   * +---+------------------------------+------------------------------+
    *
    * Partition key - sensor
    * Clustering key - event_time
