@@ -74,8 +74,8 @@ libraryDependencies ++= Seq(
   "org.scalaz.stream"      %%  "scalaz-stream"            %   ScalazStreamVersion    withSources(),
   "io.reactivex"           %%  "rxscala"                  %   RxScala                withSources(),
   "com.typesafe.akka"      %%  "akka-stream-experimental" %   AkkaStreams            withSources(),
-  "com.google.protobuf"    %   "protobuf-java"            %  "2.5.0"                 withSources(),
-  "ch.qos.logback"         %   "logback-classic"          %   Logback //should be commented for releases
+  "com.google.protobuf"    %   "protobuf-java"            %  "2.5.0"                 withSources()
+  //"ch.qos.logback"         %   "logback-classic"          %   Logback //should be commented for releases
 )
 
 
@@ -112,7 +112,7 @@ licenses += ("Apache-2.0", url("http://www.apache.org/licenses/"))
 
 bintrayOrganization in bintray := Some("haghard")
 
-repository in bintray := "snapshot" //"releases"
+repository in bintray := "releases"// "snapshot"
 
 publishMavenStyle := true
 //publishTo := Some(Resolver.file("file",  new File(localMvnRepo)))
