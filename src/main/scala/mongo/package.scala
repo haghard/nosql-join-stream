@@ -79,22 +79,22 @@ package object mongo {
     private def update[T](v: java.lang.Iterable[T], op: String) =
       Option(nested.fold(new BasicDBObject(op, v))(_.append(op, v)))
 
-    def $eq[T: Types](v: T) = EqQueryFragment(new BasicDBObject(field, v))
-    def $gt[T: Types](v: T) = self.copy(field, update(v, "$gt"))
-    def $gte[T: Types](v: T) = self.copy(field, update(v, "$gte"))
-    def $lt[T: Types](v: T) = self.copy(field, update(v, "$lt"))
-    def $lte[T: Types](v: T) = self.copy(field, update(v, "$lte"))
-    def $ne[T: Types](v: T) = self.copy(field, update(v, "$ne"))
-    def $in[T: Types](vs: Iterable[T]) = self.copy(field, update(asJavaIterable(vs), "$in"))
-    def $all[T: Types](vs: Iterable[T]) = self.copy(field, update(asJavaIterable(vs), "$all"))
-    def $nin[T: Types](vs: Iterable[T]) = self.copy(field, update(asJavaIterable(vs), "$nin"))
+    def $eq[T: MongoTypes](v: T) = EqQueryFragment(new BasicDBObject(field, v))
+    def $gt[T: MongoTypes](v: T) = self.copy(field, update(v, "$gt"))
+    def $gte[T: MongoTypes](v: T) = self.copy(field, update(v, "$gte"))
+    def $lt[T: MongoTypes](v: T) = self.copy(field, update(v, "$lt"))
+    def $lte[T: MongoTypes](v: T) = self.copy(field, update(v, "$lte"))
+    def $ne[T: MongoTypes](v: T) = self.copy(field, update(v, "$ne"))
+    def $in[T: MongoTypes](vs: Iterable[T]) = self.copy(field, update(asJavaIterable(vs), "$in"))
+    def $all[T: MongoTypes](vs: Iterable[T]) = self.copy(field, update(asJavaIterable(vs), "$all"))
+    def $nin[T: MongoTypes](vs: Iterable[T]) = self.copy(field, update(asJavaIterable(vs), "$nin"))
   }
 
   case class EqQueryFragment(override val q: BasicDBObject) extends QueryBuilder
 
   case class StatefullQuery(val field: String, val nested: Option[BasicDBObject]) extends QueryDsl with QueryBuilder {
     override val self = this
-    override def q = new BasicDBObject(field, nested.fold(new BasicDBObject())(x ⇒ x))
+    override def q = new BasicDBObject(field, nested.fold(new BasicDBObject())(identity))
     override def toString() = q.toString
   }
 
@@ -120,13 +120,13 @@ package object mongo {
   def ||(bs: QueryBuilder*) = DisjunctionQuery(bs)
 
   //Supported types
-  sealed trait Types[T]
-  implicit val intV = new Types[Int] {}
-  implicit val longV = new Types[Long] {}
-  implicit val doubleV = new Types[Double] {}
-  implicit val stringV = new Types[String] {}
-  implicit val booleanV = new Types[Boolean] {}
-  implicit val dateV = new Types[Date] {}
+  sealed trait MongoTypes[T]
+  implicit val intV = new MongoTypes[Int] {}
+  implicit val longV = new MongoTypes[Long] {}
+  implicit val doubleV = new MongoTypes[Double] {}
+  implicit val stringV = new MongoTypes[String] {}
+  implicit val booleanV = new MongoTypes[Boolean] {}
+  implicit val dateV = new MongoTypes[Date] {}
 
   trait MqlExpression
 
@@ -165,7 +165,10 @@ package object mongo {
     private val threadNumber = new AtomicInteger(1)
     private val group: ThreadGroup = Thread.currentThread().getThreadGroup
 
-    def newThread(r: Runnable) =
-      new Thread(this.group, r, namePrefix + this.threadNumber.getAndIncrement(), 0L)
+    def newThread(r: Runnable) = {
+      val th = new Thread(this.group, r, namePrefix + this.threadNumber.getAndIncrement(), 0L)
+      th.setDaemon(true)
+      th
+    }
   }
 }

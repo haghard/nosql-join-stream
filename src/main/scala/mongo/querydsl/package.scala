@@ -91,7 +91,7 @@ package object querydsl {
 
   implicit def str2LiteralAction(s: String) = literal(s)
 
-  implicit def value2Action[T: Types](n: T): Action = {
+  implicit def value2Action[T: MongoTypes](n: T): Action = {
     val item = n match {
       case date: Date ⇒ literal(formatter.format(date))
       case other      ⇒ n
