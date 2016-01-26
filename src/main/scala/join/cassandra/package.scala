@@ -40,7 +40,7 @@ package object cassandra {
   }
 
   trait CassandraSource extends Cassandra {
-    override type Stream[Out] = _root_.mongo.channel.AkkaChannel[Out, Unit]
+    override type Stream[Out] = _root_.mongo.channel.AkkaChannel[Out, akka.NotUsed]
     override type Context = scala.concurrent.ExecutionContext
   }
 

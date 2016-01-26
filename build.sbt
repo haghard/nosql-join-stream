@@ -8,7 +8,7 @@ organization := "com.haghard"
 
 name := "nosql-join-stream"
 
-version := "0.1.9-SNAPSHOOT"
+version := "0.1.9"
 
 scalaVersion := "2.11.7"
 
@@ -48,9 +48,9 @@ val CassandraDriverVersion = "3.0.0-rc1"
 
 val ScalazStreamVersion = "0.8"
 val RxScala = "0.25.0"
-val AkkaStreams = "2.0.1"
-val Akka = "2.4.1"
+val AkkaStreams = "2.0.3"
 val Logback = "1.1.2"
+val Akka="2.4.2-RC1"
 
 val localMvnRepo = "/Volumes/Data/dev_build_tools/apache-maven-3.1.1/repository"
 
@@ -73,7 +73,7 @@ libraryDependencies ++= Seq(
   "com.datastax.cassandra" %   "cassandra-driver-core"    %   CassandraDriverVersion withSources(),
   "org.scalaz.stream"      %%  "scalaz-stream"            %   ScalazStreamVersion    withSources(),
   "io.reactivex"           %%  "rxscala"                  %   RxScala                withSources(),
-  "com.typesafe.akka"      %%  "akka-stream-experimental" %   AkkaStreams            withSources(),
+  "com.typesafe.akka"      %%  "akka-stream"              %   Akka                   withSources(),
   "com.google.protobuf"    %   "protobuf-java"            %  "2.5.0"                 withSources()
   //"ch.qos.logback"         %   "logback-classic"          %   Logback //should be commented for releases
 )
@@ -81,8 +81,8 @@ libraryDependencies ++= Seq(
 
 //JoinMongoSpec failed with specs2-core 3.6.4
 libraryDependencies ++= Seq(
-  "de.bwaldvogel"        %   "mongo-java-server" %   "1.4.4"   % "test" withSources(),
-  "org.cassandraunit"   % "cassandra-unit"      %   "2.0.2.2" % "test" excludeAll(ExclusionRule(organization = "ch.qos.logback")),
+  "de.bwaldvogel"       %   "mongo-java-server" %   "1.4.4"   % "test" withSources(),
+  "org.cassandraunit"   %   "cassandra-unit"      %   "2.0.2.2" % "test" excludeAll(ExclusionRule(organization = "ch.qos.logback")),
   "org.specs2"          %%  "specs2-core"       %   "2.4.17"  % "test" withSources(),
   "org.scalatest"       %%  "scalatest"         %   "2.2.5"   % "test",
   "com.typesafe.akka"   %%  "akka-testkit"      %   Akka      % "test",
@@ -112,7 +112,7 @@ licenses += ("Apache-2.0", url("http://www.apache.org/licenses/"))
 
 bintrayOrganization in bintray := Some("haghard")
 
-repository in bintray := "snapshot" //"releases"
+repository in bintray := "releases" // "snapshot"
 
 publishMavenStyle := true
 //publishTo := Some(Resolver.file("file",  new File(localMvnRepo)))

@@ -41,7 +41,7 @@ package object mongo {
   trait MongoObsFetchError extends MongoObservable
 
   trait MongoSource extends Mongo {
-    override type Stream[Out] = _root_.mongo.channel.AkkaChannel[Out, Unit]
+    override type Stream[Out] = _root_.mongo.channel.AkkaChannel[Out, akka.NotUsed]
     override type Context = scala.concurrent.ExecutionContext
   }
 }

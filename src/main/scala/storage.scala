@@ -408,7 +408,7 @@ package object storage {
                AkkaChannel(Source.fromIterator(() => DbIterator.mongoJoin(relation(outer), session, collection, log)))
 
       override def log(session: DB, query: String, key: String, offset: Long, maxPartitionSize: Long,
-                       log: Logger, ctx: ExecutionContext): AkkaChannel[DBObject, Unit] = ???
+                       log: Logger, ctx: ExecutionContext) = ???
     }
 
     implicit object MongoStorageObservable extends Storage[MongoObservable] {
