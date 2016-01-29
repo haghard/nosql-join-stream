@@ -8,7 +8,7 @@ organization := "com.haghard"
 
 name := "nosql-join-stream"
 
-version := "0.1.11"
+version := "0.1.12"
 
 scalaVersion := "2.11.7"
 
@@ -40,7 +40,7 @@ scalacOptions ++= Seq(
 )
 
 val MongoDriverVersion = "3.0.2"
-val CassandraDriverVersion = "3.0.0"
+val CassandraDriverVersion = "3.0.0-rc1" //we have to wait until spark-cassandra-connector
 val ScalazStreamVersion = "0.8"
 val RxScala = "0.25.0"
 val Logback = "1.1.2"
@@ -54,8 +54,6 @@ ScalariformKeys.preferences := ScalariformKeys.preferences.value
   .setPreference(RewriteArrowSymbols, true)
   .setPreference(AlignParameters, true)
   .setPreference(AlignSingleLineCaseStatements, true)
-
-net.virtualvoid.sbt.graph.Plugin.graphSettings
 
 resolvers ++= Seq(
   "Local Maven Repository" at "file:///" + localMvnRepo,
