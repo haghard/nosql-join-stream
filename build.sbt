@@ -1,4 +1,3 @@
-import com.typesafe.sbt.SbtGit.git
 import com.typesafe.sbt.SbtScalariform.ScalariformKeys
 import scalariform.formatter.preferences._
 import bintray.Keys._
@@ -104,7 +103,7 @@ licenses += ("Apache-2.0", url("http://www.apache.org/licenses/"))
 
 bintrayOrganization in bintray := Some("haghard")
 
-repository in bintray := "snapshot" //"releases"
+repository in bintray := "releases" //"snapshot"
 
 publishMavenStyle := true
 //publishTo := Some(Resolver.file("file",  new File(localMvnRepo)))
