@@ -8,7 +8,7 @@ organization := "com.haghard"
 
 name := "nosql-join-stream"
 
-version := "0.1.14-SNAPSHOT"
+version := "0.1.14"
 
 scalaVersion := "2.11.7"
 
@@ -44,7 +44,7 @@ val CassandraDriverVersion = "3.0.0"
 val ScalazStreamVersion = "0.8"
 val RxScala = "0.25.0"
 val Logback = "1.1.2"
-val Akka="2.4.2-RC1"
+val Akka="2.4.2"
 
 val localMvnRepo = "/Volumes/Data/dev_build_tools/apache-maven-3.1.1/repository"
 
@@ -66,8 +66,8 @@ libraryDependencies ++= Seq(
   "org.scalaz.stream"      %%  "scalaz-stream"            %   ScalazStreamVersion    withSources(),
   "io.reactivex"           %%  "rxscala"                  %   RxScala                withSources(),
   "com.typesafe.akka"      %%  "akka-stream"              %   Akka                   withSources(),
-  "com.google.protobuf"    %   "protobuf-java"            %  "2.5.0"                 withSources()
-  //"ch.qos.logback"         %   "logback-classic"          %   Logback //should be commented for releases
+  "com.google.protobuf"    %   "protobuf-java"            %  "2.5.0"                 withSources(),
+  "ch.qos.logback"         %   "logback-classic"          %   Logback //should be commented for releases
 )
 
 

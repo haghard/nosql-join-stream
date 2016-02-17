@@ -37,7 +37,6 @@ import scalaz.stream.{ Cause, io }
 import scalaz.stream.Process
 import scalaz.syntax.id._
 import _root_.mongo.channel.AkkaChannel
-
 import java.lang.{Long => JLong}
 
 //Split them up
