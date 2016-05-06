@@ -67,7 +67,7 @@ package object mongo {
     val One, Batch = Value
   }
 
-  trait QueryDsl extends scalaz.syntax.Ops[StatefullQuery] {
+  trait QueryDslBuilder extends scalaz.syntax.Ops[MutableQueryFragment] {
 
     def field: String
 
@@ -92,13 +92,13 @@ package object mongo {
 
   case class EqQueryFragment(override val q: BasicDBObject) extends QueryBuilder
 
-  case class StatefullQuery(val field: String, val nested: Option[BasicDBObject]) extends QueryDsl with QueryBuilder {
+  case class MutableQueryFragment(val field: String, val nested: Option[BasicDBObject]) extends QueryDslBuilder with QueryBuilder {
     override val self = this
     override def q = new BasicDBObject(field, nested.fold(new BasicDBObject())(identity))
     override def toString() = q.toString
   }
 
-  case class ConjunctionQuery(cs: TraversableOnce[QueryBuilder]) extends QueryBuilder {
+  case class ConjunctionQueryFragment(cs: TraversableOnce[QueryBuilder]) extends QueryBuilder {
     override def q = new BasicDBObject("$and", cs./:(new java.util.ArrayList[DBObject]()) { (arr, c) ⇒
       (arr add c.q)
       arr
@@ -106,7 +106,7 @@ package object mongo {
     override def toString() = q.toString
   }
 
-  case class DisjunctionQuery(cs: TraversableOnce[QueryBuilder]) extends QueryBuilder {
+  case class DisjunctionQueryFragment(cs: TraversableOnce[QueryBuilder]) extends QueryBuilder {
     override def q = new BasicDBObject("$or", cs./:(new java.util.ArrayList[DBObject]()) { (arr, c) ⇒
       (arr add c.q)
       arr
@@ -114,10 +114,10 @@ package object mongo {
     override def toString() = q.toString
   }
 
-  implicit def f2b(field: String) = StatefullQuery(field, None)
+  implicit def f2b(field: String) = MutableQueryFragment(field, None)
 
-  def &&(bs: QueryBuilder*) = ConjunctionQuery(bs)
-  def ||(bs: QueryBuilder*) = DisjunctionQuery(bs)
+  def &&(bs: QueryBuilder*) = ConjunctionQueryFragment(bs)
+  def ||(bs: QueryBuilder*) = DisjunctionQueryFragment(bs)
 
   //Supported types
   sealed trait MongoTypes[T]

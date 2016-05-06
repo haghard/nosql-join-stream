@@ -48,7 +48,7 @@ package object eventlog {
 
     */
   case class Log[M <: StorageModule : Storage](implicit ctx: M#Context, session: M#Session, t: ClassTag[M]) {
-    implicit val logger = org.slf4j.LoggerFactory.getLogger(s"${t.runtimeClass.getName.dropWhile(_ != '$').drop(1)}-source-producer")
+    val logger = org.slf4j.LoggerFactory.getLogger(s"${t.runtimeClass.getName.dropWhile(_ != '$').drop(1)}-source-producer")
 
     def from(query: String, key: String, offset: Long = 0, maxPartitionSize: Long = 5000000l): M#Stream[M#Record] = {
       val storage = Storage[M]

@@ -7,9 +7,9 @@ organization := "com.haghard"
 
 name := "nosql-join-stream"
 
-version := "0.1.15"
+version := "0.1.16"
 
-scalaVersion := "2.11.7"
+scalaVersion := "2.11.8"
 
 parallelExecution := false
 parallelExecution in Test := false
@@ -42,8 +42,8 @@ val MongoDriverVersion = "3.0.2"
 val CassandraDriverVersion = "3.0.0"
 val ScalazStreamVersion = "0.8"
 val RxScala = "0.25.0"
-//val Logback = "1.1.2"
-val Akka="2.4.2"
+val Logback = "1.1.2"
+val Akka="2.4.4"
 
 val localMvnRepo = "/Volumes/Data/dev_build_tools/apache-maven-3.1.1/repository"
 

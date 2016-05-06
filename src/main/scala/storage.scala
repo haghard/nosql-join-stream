@@ -315,8 +315,9 @@ package object storage {
       }
     }
 
-    private[storage] case class CassandraStreamIterator(session: CassandraSource#Session, query: String, key: String, offset: Long,
-                                       maxPartitionSize: Long, log: Logger) extends Iterator[CassandraSource#Record]() {
+    private[storage] case class CassandraStreamIterator(session: CassandraSource#Session, query: String, key: String,
+                                                        offset: Long, maxPartitionSize: Long,
+                                                        log: Logger) extends Iterator[CassandraSource#Record]() {
       val seqNum = new AtomicLong(offset)
       val cursorRef = new AtomicReference[CassandraSource#Cursor](newIter)
 

@@ -45,8 +45,8 @@ class SportCenterSpec extends TestKit(ActorSystem("akka-join-stream")) with Word
   def fold = { (acc: List[String], cur: String) ⇒ acc :+ cur }
 
   val idField = "persistence_id"
-  val cassandraHost0 = "192.168.0.134"
-  val cassandraHost1 = "192.168.0.82"
+  val cassandraHost0 = "109.234.39.32"
+  val cassandraHost1 = "109.234.39.76"
   val cassandraPort = 9042
   val hosts = List(new InetSocketAddress(cassandraHost0, cassandraPort), new InetSocketAddress(cassandraHost1, cassandraPort)).asJava
   val settings = ActorMaterializerSettings(system).withInputBuffer(1, 1).withDispatcher(dName)
@@ -56,7 +56,7 @@ class SportCenterSpec extends TestKit(ActorSystem("akka-join-stream")) with Word
   implicit val executor = Executors.newFixedThreadPool(2, new NamedThreadFactory("sport-center-worker"))
 
   val queryByKey = """
-     |SELECT * FROM sport_center_journal WHERE
+     |SELECT event FROM sport_center_journal WHERE
      |        persistence_id = ? AND
      |        partition_nr = ? AND
      |        sequence_nr >= ?
@@ -64,8 +64,9 @@ class SportCenterSpec extends TestKit(ActorSystem("akka-join-stream")) with Word
 
   def deserialize(row: CassandraSource#Record): domain.formats.DomainEventFormats.ResultAddedFormat =
     try {
-      val bts = Bytes.getArray(row.getBytes("message"))
-      domain.formats.DomainEventFormats.ResultAddedFormat parseFrom bts.slice(offset, bts.length)
+      //val bts = Bytes.getArray(row.getBytes("event"))
+      val bts = row.getBytes("event").array()
+      domain.formats.DomainEventFormats.ResultAddedFormat parseFrom bts //.slice(offset, bts.length)
     } catch {
       case e: Exception ⇒
         println(e.getMessage)
