@@ -7,7 +7,7 @@ organization := "com.haghard"
 
 name := "nosql-join-stream"
 
-version := "0.2.0"
+version := "0.2.1"
 
 scalaVersion := "2.11.8"
 
@@ -134,3 +134,6 @@ inConfig(Test)(compileInputs.in(compile) <<= compileInputs.in(compile).dependsOn
 
 //bintray:: tab
 //bintray::publish
+
+//git tag -a v0.2.0 -m 'version 0.2.0'
+//git push origin master --tags
