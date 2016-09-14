@@ -78,7 +78,7 @@ from mongo.channel.test.join.JoinCassandraSpec
   }
   
   //to get Observable
-  val joinQuery = (Join[CassandraObservable] inner (qSensors, SENSORS, qTemperature, TEMPERATURE, KEYSPACE)) { (outer, inner) ⇒
+  val joinQuery = (Join[CassandraSource] inner (qSensors, SENSORS, qTemperature, TEMPERATURE, KEYSPACE)) { (outer, inner) ⇒
     s"Sensor №${outer.getLong("sensor")} - time: ${inner.getLong("event_time")} temperature: ${inner.getDouble("temperature")}"
   }
   
@@ -128,7 +128,7 @@ from mongo.channel.test.join.JoinMongoSpec
   implicit val Mat = ActorMaterializer(settings)
   implicit val dispatcher = system.dispatchers.lookup(dName)
     
-  val joinQuery = (Join[MongoAkkaStream] inner (qSensors, SENSORS, qTemperature, TEMPERATURE, KEYSPACE)) { (outer, inner) ⇒
+  val joinQuery = (Join[MongoSource] inner (qSensors, SENSORS, qTemperature, TEMPERATURE, KEYSPACE)) { (outer, inner) ⇒
     s"Sensor №${outer.getLong("sensor")} - time: ${inner.getLong("event_time")} temperature: ${inner.getDouble("temperature")}"
   }
   
