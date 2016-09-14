@@ -14,7 +14,7 @@
 
 package mongo.channel.test.stream
 
-import java.util.concurrent.CountDownLatch
+import java.util.concurrent.{ TimeUnit, CountDownLatch }
 import java.util.concurrent.atomic.AtomicLong
 import join.cassandra.{ CassandraProcess, CassandraObservable }
 import mongo.channel.test.cassandra.DomainEnviroment
@@ -29,27 +29,36 @@ import scalaz.stream.sink._
 class PartitionedLogCassandraSpec extends WordSpecLike with MustMatchers with DomainEnviroment {
   val pageSize = 16
 
-  def subscriber(count: AtomicLong, latch: CountDownLatch) = new Subscriber[CassandraObservable#Record] {
+  def subscriber(count: AtomicLong, latch: CountDownLatch,
+                 session: CassandraObservable#Session, client: CassandraObservable#Client) = new Subscriber[CassandraObservable#Record] {
+
     override def onStart() = request(pageSize)
     override def onNext(row: CassandraObservable#Record) = {
-      println(s"${row.getString(0)} : ${row.getLong(1)} ${row.getLong(2)}")
+      logger.info(s"${row.getString(0)}:${row.getLong(1)} ${row.getLong(2)} ★ ★ ★")
       if (count.incrementAndGet() % pageSize == 0) {
-        println(s"★ ★ ★ page : $pageSize ★ ★ ★")
+        logger.info(s"★ ★ ★ page : {} ★ ★ ★", pageSize)
         request(pageSize)
       }
     }
 
     override def onError(e: Throwable) = {
-      println(s"★ ★ ★ CassandraObservableStream has been completed with error: ${e.getMessage}")
+      println(s"★ ★ ★ CassandraObservableLog has been completed with error: ${e.getMessage}")
+      session.close()
+      client.close()
       latch.countDown()
     }
 
-    override def onCompleted() = latch.countDown()
+    override def onCompleted() = {
+      session.close()
+      client.close()
+      latch.countDown()
+    }
   }
 
   "PartitionedCassandraLog" must {
 
     "read log with CassandraObservable" in {
+      val offset = 5
       val latch = new CountDownLatch(1)
       val count = new AtomicLong(0)
       val client = com.datastax.driver.core.Cluster.builder
@@ -58,13 +67,15 @@ class PartitionedLogCassandraSpec extends WordSpecLike with MustMatchers with Do
         .build
       implicit val session = (client connect "journal")
 
-      (eventlog.Log[CassandraObservable] from (queryByKey, actors.head, 5, maxPartitionSize))
+      (eventlog.Log[CassandraObservable] from (queryByKey, actors.head, offset, maxPartitionSize))
         .observeOn(RxExecutor)
-        .subscribe(subscriber(count, latch))
+        .subscribe(subscriber(count, latch, session, client))
 
-      latch.await()
-      client.close()
-      count.get() mustEqual domainSize - 5
+      if (!latch.await(30, TimeUnit.SECONDS)) {
+        session.close()
+        client.close()
+      }
+      count.get() mustEqual domainSize - offset
     }
 
     "read log with CassandraProcess" in {
@@ -91,9 +102,12 @@ class PartitionedLogCassandraSpec extends WordSpecLike with MustMatchers with Do
         _ ← (row observe Logger to BufferSink)
       } yield ())
         .onFailure { ex ⇒
-          eval_(Task.delay { logger.debug(s"CassandraProcess has been completed with error: ${ex.getMessage}") })
+          eval_(Task.delay { logger.debug(s"CassandraProcessLog has been completed with error: ${ex.getMessage}") })
         }.onComplete {
-          eval_(Task.delay { session.close(); client.close() })
+          eval_(Task.delay {
+            session.close()
+            client.close()
+          })
         }.runLog.run
 
       buffer.length mustEqual domainSize
@@ -117,14 +131,17 @@ class PartitionedLogCassandraSpec extends WordSpecLike with MustMatchers with Do
         }
       }
 
-      val log0 = (eventlog.Log[T] from (queryByKey, actors(0), 3, maxPartitionSize))
-      val log1 = (eventlog.Log[T] from (queryByKey, actors(1), 15, maxPartitionSize))
+      val logA = (eventlog.Log[T] from (queryByKey, actors(0), 3, maxPartitionSize))
+      val logB = (eventlog.Log[T] from (queryByKey, actors(1), 15, maxPartitionSize))
 
-      (eval(Task.now(session)) through (log0 zip log1).out)
+      (eval(Task.now(session)) through (logA zip logB).out)
         .flatMap { p ⇒
           (p to Logger2(count))
         }.onComplete {
-          eval_(Task.delay { session.close(); client.close() })
+          eval_(Task.delay {
+            session.close()
+            client.close()
+          })
         }.runLog.run
 
       count.get() mustEqual domainSize - 15

@@ -7,7 +7,7 @@ organization := "com.haghard"
 
 name := "nosql-join-stream"
 
-version := "0.1.16"
+version := "0.2.0"
 
 scalaVersion := "2.11.8"
 
@@ -16,13 +16,6 @@ parallelExecution in Test := false
 logBuffered in Test := false
 
 initialCommands in console in Test := "import org.specs2._"
-
-//useJGit
-//enablePlugins(GitVersioning)
-//shellPrompt := { state => System.getProperty("user.name") + "> " }
-//showCurrentGitBranch
-//versionWithGit
-//git.baseVersion := "master"
 
 promptTheme := ScalapenosTheme
 
@@ -39,11 +32,11 @@ scalacOptions ++= Seq(
 )
 
 val MongoDriverVersion = "3.0.2"
-val CassandraDriverVersion = "3.0.0"
-val ScalazStreamVersion = "0.8"
-val RxScala = "0.25.0"
+val CassandraDriverVersion = "3.0.1"
+val ScalazStreamVersion = "0.8.3"
+val RxScala = "0.26.1" //doesn't work with 0.26.2, need to figure out
 val Logback = "1.1.2"
-val Akka="2.4.4"
+val Akka="2.4.8"
 
 val localMvnRepo = "/Volumes/Data/dev_build_tools/apache-maven-3.1.1/repository"
 
@@ -69,11 +62,11 @@ libraryDependencies ++= Seq(
   //"ch.qos.logback"         %   "logback-classic"          %   Logback //should be commented for releases
 )
 
-
+//2.0.2.2
 //JoinMongoSpec failed with specs2-core 3.6.4
 libraryDependencies ++= Seq(
   "de.bwaldvogel"       %   "mongo-java-server" %   "1.4.4"   % "test" withSources(),
-  "org.cassandraunit"   %   "cassandra-unit"      %   "2.0.2.2" % "test" excludeAll(ExclusionRule(organization = "ch.qos.logback")),
+  "org.cassandraunit"   %   "cassandra-unit"      % "2.1.3.1" % "test" excludeAll(ExclusionRule(organization = "ch.qos.logback")),
   "org.specs2"          %%  "specs2-core"       %   "2.4.17"  % "test" withSources(),
   "org.scalatest"       %%  "scalatest"         %   "2.2.5"   % "test",
   "com.typesafe.akka"   %%  "akka-testkit"      %   Akka      % "test",

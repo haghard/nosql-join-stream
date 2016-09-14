@@ -19,12 +19,46 @@ Where to get it
 ```
 resolvers += "haghard-bintray"  at "http://dl.bintray.com/haghard/releases"
 
-libraryDependencies +=  "com.haghard"  %% "nosql-join-stream" % "0.1.16"
+libraryDependencies +=  "com.haghard"  %% "nosql-join-stream" % "0.1.18"
 
 ```
 
+Log Example for cassandra
+===============================
+from mongo.channel.test.stream.{  PartitionedLogCassandraSpec, AkkaCassandraPartitionedLogSpec } 
 
-Example for cassandra
+```scala
+  val maxPartitionSize = 5000
+  val query =
+      s"""
+         |SELECT * FROM DOMAIN WHERE
+         |        persistence_id = ? AND
+         |        partition_nr = ? AND
+         |        sequence_nr >= ?
+     """.stripMargin
+  
+  //to get Process
+  val logA = (eventlog.Log[CassandraProcess] from (query, "key-a", 0, maxPartitionSize))
+  
+    
+  //to get Observable
+  val logB = (eventlog.Log[CassandraObservable] from (query, "key-a", 0, maxPartitionSize))
+    
+  
+  //to get Akka Source
+  val dName = "akka.join-dispatcher"
+  val settings = ActorMaterializerSettings(system).withInputBuffer(1, 1).withDispatcher(dName)
+      .withSupervisionStrategy(decider)
+  implicit val Mat = ActorMaterializer(settings)
+  implicit val dispatcher = system.dispatchers.lookup(dName)
+             
+  val logC = (eventlog.Log[CassandraSource] from (query, "key-a", 0, maxPartitionSize)).source
+    
+    
+```
+
+
+Join Example for cassandra
 ===============================
 from mongo.channel.test.join.JoinCassandraSpec
 
@@ -63,7 +97,7 @@ from mongo.channel.test.join.JoinCassandraSpec
     
 ```
 
-Example for mongo
+Join Example for mongo
 ===============================
 from mongo.channel.test.join.JoinMongoSpec
 

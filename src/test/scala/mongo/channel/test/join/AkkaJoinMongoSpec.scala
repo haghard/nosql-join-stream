@@ -23,7 +23,6 @@ import dsl.mongo._
 import akka.testkit.TestKit
 import com.mongodb.DBObject
 import akka.actor.ActorSystem
-import org.apache.log4j.Logger
 import join.mongo.MongoSource
 import mongo.channel.test.MongoIntegrationEnv._
 import akka.stream.{ Supervision, ActorMaterializerSettings, ActorMaterializer }
@@ -34,7 +33,7 @@ import scala.util.{ Failure, Success }
 class AkkaJoinMongoSpec extends TestKit(ActorSystem("akka-join-stream")) with WordSpecLike
     with MustMatchers with BeforeAndAfterEach with BeforeAndAfterAll {
 
-  val logger = Logger.getLogger("akka-join-stream")
+  //val logger = org.slf4j.LoggerFactory.getLogger("akka-join-stream")
 
   override def afterAll() = TestKit.shutdownActorSystem(system)
 
@@ -82,7 +81,7 @@ class AkkaJoinMongoSpec extends TestKit(ActorSystem("akka-join-stream")) with Wo
         latch.countDown()
     }
 
-    latch.await(5, TimeUnit.SECONDS) mustBe true
+    latch.await(15, TimeUnit.SECONDS) mustBe true
     logger.info("Seq: {}", resRef.get())
     c.close()
     resRef.get().size mustBe MongoIntegrationEnv.programmersSize

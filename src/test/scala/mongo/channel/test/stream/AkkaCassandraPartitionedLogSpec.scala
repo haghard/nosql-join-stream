@@ -14,7 +14,7 @@
 
 package mongo.channel.test.stream
 
-import java.util.concurrent.CountDownLatch
+import java.util.concurrent.{ TimeUnit, CountDownLatch }
 import java.util.concurrent.atomic.AtomicLong
 
 import akka.actor.ActorSystem
@@ -27,14 +27,13 @@ import org.scalatest.{ MustMatchers, WordSpecLike }
 class AkkaCassandraPartitionedLogSpec extends TestKit(ActorSystem("akka-log-stream"))
     with WordSpecLike with MustMatchers with DomainEnviroment {
 
-  val settings = ActorMaterializerSettings(system)
-    .withInputBuffer(1, 1)
-    .withDispatcher("akka.join-dispatcher")
+  val settings = ActorMaterializerSettings(system).withInputBuffer(1, 1).withDispatcher("akka.join-dispatcher")
   implicit val Mat = ActorMaterializer(settings)
   implicit val dispatcher = system.dispatchers.lookup("akka.join-dispatcher")
 
   "EventLogCassandra" must {
     "run with CassandraSource" in {
+      val offset = 5
       val latch = new CountDownLatch(1)
       val count = new AtomicLong(0)
 
@@ -45,17 +44,19 @@ class AkkaCassandraPartitionedLogSpec extends TestKit(ActorSystem("akka-log-stre
       val client = clusterBuilder.build
       implicit val session = (client connect "journal")
 
-      (eventlog.Log[CassandraSource] from (queryByKey, actors.head, 5, maxPartitionSize))
+      (eventlog.Log[CassandraSource] from (queryByKey, actors.head, offset, maxPartitionSize))
         .source
         .runForeach { row ⇒
           count.incrementAndGet()
-          println(s"${row.getString(0)} : ${row.getLong(1)} ${row.getLong(2)}")
-        }.onComplete(_ ⇒ latch.countDown())
+          logger.debug(s"${row.getString(0)} : ${row.getLong(1)} ${row.getLong(2)}")
+        }.onComplete { _ ⇒
+          session.close()
+          client.close()
+          latch.countDown()
+        }
 
-      latch.await()
-      session.close()
-      client.close()
-      count.get() mustEqual domainSize - 5
+      latch.await(30, TimeUnit.SECONDS)
+      count.get() mustEqual domainSize - offset
     }
   }
 }
