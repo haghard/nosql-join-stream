@@ -8,3 +8,4 @@ logs/
 # IntelliJ
 .idea/
 /cas-tmp/
+/cas-tmp/*
