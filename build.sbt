@@ -7,7 +7,7 @@ organization := "com.haghard"
 
 name := "nosql-join-stream"
 
-version := "0.2.1"
+version := "0.2.2"
 
 scalaVersion := "2.11.8"
 
@@ -56,11 +56,11 @@ libraryDependencies ++= Seq(
   "org.mongodb"            %   "mongo-java-driver"        %   MongoDriverVersion     withSources(),
   "com.datastax.cassandra" %   "cassandra-driver-core"    %   CassandraDriverVersion withSources(),
   "org.scalaz.stream"      %%  "scalaz-stream"            %   ScalazStreamVersion    withSources(),
-  //"co.fs2"                 %%  "fs2-core"                 %   "0.9.0",
+  "co.fs2"                 %%  "fs2-core"                 %   "0.9.0",
   "io.reactivex"           %%  "rxscala"                  %   RxScala                withSources(),
   "com.typesafe.akka"      %%  "akka-stream"              %   Akka                   withSources(),
-  "com.google.protobuf"    %   "protobuf-java"            %  "2.5.0"                 withSources()
-  //"ch.qos.logback"         %   "logback-classic"          %   Logback //should be commented for releases
+  "com.google.protobuf"    %   "protobuf-java"            %  "2.5.0"                 withSources(),
+  "ch.qos.logback"         %   "logback-classic"          %   Logback //should be commented for releases
 )
 
 //2.1.3.1
@@ -136,5 +136,5 @@ inConfig(Test)(compileInputs.in(compile) <<= compileInputs.in(compile).dependsOn
 //bintray:: tab
 //bintray::publish
 
-//git tag -a v0.2.0 -m 'version 0.2.0'
+//git tag -a v0.2.1 -m 'version 0.2.1'
 //git push origin master --tags
