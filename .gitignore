@@ -8,4 +8,4 @@ logs/
 # IntelliJ
 .idea/
 /cas-tmp/
-/cas-tmp/*
+/cas-tmp/cas-tmp/log4j-embedded-cassandra.properties
