@@ -15,7 +15,9 @@
 package mongo
 
 import java.util.concurrent.{ ExecutorService, TimeUnit }
+import com.datastax.driver.core.Row
 import com.mongodb.{ DB, DBObject, MongoClient, MongoException }
+import scala.reflect.ClassTag
 import scala.util.{ Failure, Success, Try }
 import scalaz.Scalaz._
 import scalaz.concurrent.{ Strategy, Task }
@@ -33,43 +35,43 @@ package object channel {
                           readPref: Option[ReadPreference])
 
   trait ChannelBuilder[T] {
-    def createChannel(arg: String \/ QuerySetting)(implicit pool: ExecutorService): ScalazChannel[T, com.mongodb.DBObject]
+    def createChannel(arg: String \/ QuerySetting)(implicit pool: ExecutorService): ScalazStreamsOps[T, com.mongodb.DBObject]
   }
 
-  case class AkkaChannel[A, U](source: AkkaSource[A, U]) {
-    def map[B](f: A ⇒ B): AkkaChannel[B, U] =
-      AkkaChannel[B, U] { source map f }
+  case class AkkaStreamsOps[A, U](source: AkkaSource[A, U]) {
+    def map[B](f: A ⇒ B): AkkaStreamsOps[B, U] =
+      AkkaStreamsOps[B, U] { source map f }
 
-    def flatMap[B](f: A ⇒ AkkaChannel[B, U]): AkkaChannel[B, U] =
-      AkkaChannel(source.map(in ⇒ f(in).source).flatMapConcat(identity))
+    def flatMap[B](f: A ⇒ AkkaStreamsOps[B, U]): AkkaStreamsOps[B, U] =
+      AkkaStreamsOps(source.map(in ⇒ f(in).source).flatMapConcat(identity))
   }
 
-  case class ScalazChannel[T, A](out: ResponseChannel[T, A]) {
-    private def liftP[B](f: Process[Task, A] ⇒ Process[Task, B]): ScalazChannel[T, B] =
-      ScalazChannel(out.map(step ⇒ step.andThen(task ⇒ task.map(p ⇒ f(p)))))
+  case class ScalazStreamsOps[T, A](source: ResponseChannel[T, A]) {
+    private def liftP[B](f: Process[Task, A] ⇒ Process[Task, B]): ScalazStreamsOps[T, B] =
+      ScalazStreamsOps(source.map(step ⇒ step.andThen(task ⇒ task.map(p ⇒ f(p)))))
 
-    private def pipe[B](p2: Process1[A, B]): ScalazChannel[T, B] = liftP(_.pipe(p2))
+    private def pipe[B](p2: Process1[A, B]): ScalazStreamsOps[T, B] = liftP(_.pipe(p2))
 
-    def |>[B](p2: Process1[A, B]): ScalazChannel[T, B] = pipe(p2)
+    def |>[B](p2: Process1[A, B]): ScalazStreamsOps[T, B] = pipe(p2)
 
     /**
      * @param f
      * @tparam B
      * @return
      */
-    def map[B](f: A ⇒ B): ScalazChannel[T, B] = liftP(_.map(f))
+    def map[B](f: A ⇒ B): ScalazStreamsOps[T, B] = liftP(_.map(f))
 
     /**
      * @param f
      * @tparam B
      * @return
      */
-    def flatMap[B](f: A ⇒ ScalazChannel[T, B]): ScalazChannel[T, B] = ScalazChannel {
-      out.map(
+    def flatMap[B](f: A ⇒ ScalazStreamsOps[T, B]): ScalazStreamsOps[T, B] = ScalazStreamsOps {
+      source.map(
         (step: T ⇒ Task[Process[Task, A]]) ⇒ (task: T) ⇒
           step(task).map { p ⇒
             p.flatMap((a: A) ⇒
-              f(a).out.flatMap(h ⇒ eval(h(task)).flatMap(i ⇒ i)))
+              f(a).source.flatMap(h ⇒ eval(h(task)).flatMap(i ⇒ i)))
           }
       )
     }
@@ -80,13 +82,14 @@ package object channel {
      * If at any point one terminates with cause `c`, both sides are killed, and
      * the resulting `Process` terminates with `c`.
      * Useful combinator for querying one-to-one relations or just taking first one from the right
+     *
      * @param stream
      * @param f
      * @tparam B
      * @tparam C
      * @return DBChannel[T, C]
      */
-    def zipWith[B, C](stream: ScalazChannel[T, B])(implicit f: (A, B) ⇒ C): ScalazChannel[T, C] = ScalazChannel {
+    def zipWith[B, C](stream: ScalazStreamsOps[T, B])(implicit f: (A, B) ⇒ C): ScalazStreamsOps[T, C] = ScalazStreamsOps {
       val zipper: ((T ⇒ Task[Process[Task, A]], T ⇒ Task[Process[Task, B]]) ⇒ (T ⇒ Task[Process[Task, C]])) = {
         (fa, fb) ⇒
           (r: T) ⇒
@@ -103,7 +106,7 @@ package object channel {
           pair ← emit(f(l, r))
         } yield pair).repeat
 
-      out.tee(stream.out)(deterministicZip(zipper))
+      source.tee(stream.source)(deterministicZip(zipper))
     }
 
     /**
@@ -114,17 +117,18 @@ package object channel {
      * @tparam C
      * @return
      */
-    def tee[B, C](other: Process[Task, B])(t: Tee[A, B, C]): ScalazChannel[T, C] =
+    def tee[B, C](other: Process[Task, B])(t: Tee[A, B, C]): ScalazStreamsOps[T, C] =
       liftP { p ⇒ p.tee(other)(t) }
 
     /**
      * Interleave or combine the outputs of two processes in nondeterministic fashion.
      * It's useful when you want mix results from 2 query stream
+     *
      * @param other
      * @tparam B
      * @return
      */
-    def either[B](other: Process[Task, B])(implicit ex: ExecutorService): ScalazChannel[T, A \/ B] =
+    def either[B](other: Process[Task, B])(implicit ex: ExecutorService): ScalazStreamsOps[T, A \/ B] =
       liftP { p ⇒ p.wye(other)(scalaz.stream.wye.either)(Strategy.Executor(ex)) }
 
     /**
@@ -138,16 +142,17 @@ package object channel {
      * @tparam B
      * @return DBChannel[T, (A, B)]
      */
-    def zip[B](stream: ScalazChannel[T, B]): ScalazChannel[T, (A, B)] = zipWith(stream)((_, _))
+    def zip[B](stream: ScalazStreamsOps[T, B]): ScalazStreamsOps[T, (A, B)] = zipWith(stream)((_, _))
 
     /**
      * Interleave or combine the outputs of two processes in deterministic fashion. It's useful when you want to fetch object
      * and transform each one with result from `other` process, or restrict result size with size of `other` stream
+     *
      * @param other
      * @tparam B
      * @return
      */
-    def zip[B](other: Process[Task, B]): ScalazChannel[T, (A, B)] = liftP { p ⇒ (p zip other) }
+    def zip[B](other: Process[Task, B]): ScalazStreamsOps[T, (A, B)] = liftP { p ⇒ (p zip other) }
 
     /**
      * One to many relation powered by `flatMap` with restricted field in output
@@ -157,7 +162,7 @@ package object channel {
      * @tparam C
      * @return
      */
-    def join[E, C](relation: A ⇒ ScalazChannel[T, E])(f: (A, E) ⇒ C): ScalazChannel[T, C] =
+    def join[E, C](relation: A ⇒ ScalazStreamsOps[T, E])(f: (A, E) ⇒ C): ScalazStreamsOps[T, C] =
       flatMap { id: A ⇒
         relation(id) |> lift {
           f(id, _)
@@ -166,24 +171,21 @@ package object channel {
 
     /**
      * One to many relation powered by `flatMap` with raw objects in output
-     * @param relation
-     * @tparam C
-     * @return
+     *
      */
-    def joinRaw[C](relation: A ⇒ ScalazChannel[T, A])(f: (A, A) ⇒ C): ScalazChannel[T, C] =
+    def joinRaw[C](relation: A ⇒ ScalazStreamsOps[T, A])(f: (A, A) ⇒ C): ScalazStreamsOps[T, C] =
       flatMap { id: A ⇒ relation(id) |> lift(f(id, _)) }
 
     /**
-     * Allows you to extract specified field from [[com.datastax.driver.core.Row]] by name with type cast
-     * @param name field name
-     * @tparam B  field type
-     * @throws Exception If item is not a `Row`.
-     * @return DBChannel[T, B]
+     * Allows you to extract specified field from [[com.mongodb.DBObject]] or [[com.datastax.driver.core.Row]] by name
+     *
      */
-    def column[B](name: String): ScalazChannel[T, B] = {
+    def column[B](name: String)(implicit typeConverter: dbtypes.FromJavaConverter[B], tag: ClassTag[B]): ScalazStreamsOps[T, B] = {
+      /*com.google.common.reflect.TypeToken.of[B](clazz)*/
       pipe(lift {
-        case r: DBObject ⇒ r.get(name).asInstanceOf[B]
-        case other       ⇒ throw new Exception(s"DatabaseObject expected but found ${other.getClass.getName}")
+        case r: DBObject ⇒ typeConverter.convert(r.get(name))
+        case r: Row      ⇒ r.get(name, tag.runtimeClass.asInstanceOf[Class[B]])
+        case other       ⇒ throw new Exception(s"DBObject expected but found ${other.getClass.getName}")
       })
     }
   }
@@ -232,7 +234,7 @@ package object channel {
     def build(): String \/ QuerySetting
   }
 
-  def create[T](f: MutableBuilder ⇒ Unit)(implicit pool: ExecutorService, b: ChannelBuilder[T]): ScalazChannel[T, DBObject] = {
+  def create[T](f: MutableBuilder ⇒ Unit)(implicit pool: ExecutorService, b: ChannelBuilder[T]): ScalazStreamsOps[T, DBObject] = {
     val builder = new MutableBuilder {
       override def build(): String \/ QuerySetting =
         for {
@@ -249,9 +251,9 @@ package object channel {
 
   implicit object mongoDBChannel extends ChannelBuilder[DB] {
     val logger = org.slf4j.LoggerFactory.getLogger("mongo-cursor")
-    override def createChannel(arg: String \/ QuerySetting)(implicit ES: ExecutorService): ScalazChannel[DB, DBObject] =
-      arg.fold({ error ⇒ ScalazChannel(eval(Task.fail(new MongoException(error)))) }, { setting ⇒
-        ScalazChannel(eval(Task.now { db: DB ⇒
+    override def createChannel(arg: String \/ QuerySetting)(implicit ES: ExecutorService): ScalazStreamsOps[DB, DBObject] =
+      arg.fold({ error ⇒ ScalazStreamsOps(eval(Task.fail(new MongoException(error)))) }, { setting ⇒
+        ScalazStreamsOps(eval(Task.now { db: DB ⇒
           Task {
             scalaz.stream.io.resource(
               Task delay {
@@ -267,10 +269,7 @@ package object channel {
                 logger.debug(s"query:[${setting.q}] ReadPrefs:[${cursor.getReadPreference}}] Server:[${cursor.getServerAddress}] Sort:[${setting.sortQuery}] Limit:[${setting.limit}] Skip:[${setting.skip}]")
                 cursor
               })(c ⇒ Task.delay(c.close())) { c ⇒
-                Task.delay {
-                  if (c.hasNext) c.next
-                  else throw Cause.Terminated(Cause.End)
-                }
+                Task.delay(if (c.hasNext) c.next else throw Cause.Terminated(Cause.End))
               }
           }(ES)
         })
@@ -280,9 +279,9 @@ package object channel {
 
   implicit object mongoClientChannel extends ChannelBuilder[MongoClient] {
     val logger = org.slf4j.LoggerFactory.getLogger("mongo-cursor")
-    override def createChannel(arg: String \/ QuerySetting)(implicit ES: ExecutorService): ScalazChannel[MongoClient, DBObject] =
-      arg.fold({ error ⇒ ScalazChannel(eval(Task.fail(new MongoException(error)))) }, { setting ⇒
-        ScalazChannel(eval(Task.now { client: MongoClient ⇒
+    override def createChannel(arg: String \/ QuerySetting)(implicit ES: ExecutorService): ScalazStreamsOps[MongoClient, DBObject] =
+      arg.fold({ error ⇒ ScalazStreamsOps(eval(Task.fail(new MongoException(error)))) }, { setting ⇒
+        ScalazStreamsOps(eval(Task.now { client: MongoClient ⇒
           Task {
             scalaz.stream.io.resource(
               Task delay {
@@ -298,10 +297,7 @@ package object channel {
                 logger.debug(s"query:[${setting.q}] ReadPrefs:[${cursor.getReadPreference}}] Server:[${cursor.getServerAddress}] Sort:[${setting.sortQuery}] Limit:[${setting.limit}] Skip:[${setting.skip}]")
                 cursor
               })(c ⇒ Task.delay(c.close())) { c ⇒
-                Task.delay {
-                  if (c.hasNext) c.next
-                  else throw Cause.Terminated(Cause.End)
-                }
+                Task.delay(if (c.hasNext) c.next else throw Cause.Terminated(Cause.End))
               }
           }(ES)
         }))

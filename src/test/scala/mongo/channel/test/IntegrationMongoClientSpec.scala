@@ -53,9 +53,6 @@ trait MongoClientEnviromentLifecycle[T] extends org.specs2.mutable.After {
   }
 }
 
-/**
- * This looks like a specs2 exception after update on scalaz-stream-0.8
- */
 class IntegrationMongoClientSpec extends Specification {
 
   "Hit server with invalid query" in new MongoClientEnviromentLifecycle[Int] {
@@ -67,7 +64,7 @@ class IntegrationMongoClientSpec extends Specification {
     }.column[Int]("article")
 
     (for {
-      dbObject ← Resource through query.out
+      dbObject ← Resource through query.source
       _ ← dbObject to sink
     } yield ())
       .onFailure { th ⇒ isFailureInvoked.set(true); halt }
@@ -84,7 +81,7 @@ class IntegrationMongoClientSpec extends Specification {
     }.column[Int]("article")
 
     (for {
-      dbObject ← Resource through q.out
+      dbObject ← Resource through q.source
       _ ← dbObject to sink
     } yield ())
       .onFailure { th ⇒ isFailureInvoked.set(true); logger.debug(th.getMessage); halt }
@@ -103,7 +100,7 @@ class IntegrationMongoClientSpec extends Specification {
     }.column[Int]("article")
 
     (for {
-      dbObject ← Resource through q.out
+      dbObject ← Resource through q.source
       _ ← dbObject to sink
     } yield ())
       .onFailure { th ⇒ isFailureInvoked.set(true); logger.debug(th.getMessage); halt }
@@ -120,7 +117,7 @@ class IntegrationMongoClientSpec extends Specification {
     }.column[Int]("article")
 
     (for {
-      dbObject ← Resource through q.out
+      dbObject ← Resource through q.source
       _ ← dbObject to sink
     } yield ())
       .onFailure { th ⇒ isFailureInvoked.set(true); logger.debug(th.getMessage); halt }
@@ -135,14 +132,17 @@ class IntegrationMongoClientSpec extends Specification {
       b.q("dt" $gt new Date())
       b.collection(PRODUCT)
       b.db(TEST_DB)
-    }.column[Int]("article")
+    }.column[Int]("article") //dt
 
     for (i ← 1 to 3) yield {
       (for {
-        dbObject ← Resource through products.out
+        dbObject ← Resource through products.source
         _ ← dbObject to sink
       } yield ())
-        .onFailure { th ⇒ logger.debug(s"Failure: {}", th.getMessage); halt }
+        .onFailure { th ⇒
+          logger.debug(s"Failure: {}", th.getMessage)
+          halt
+        }
         .onComplete { eval(Task.delay(logger.debug(s"Interaction $i has been completed"))) }
         .runLog.run
     }
@@ -164,8 +164,8 @@ class IntegrationMongoClientSpec extends Specification {
     }.column[Int]("category")
 
     (for {
-      cats ← Resource through categories.out
-      prodOrCat ← Resource through ((products either cats).out)
+      cats ← Resource through categories.source
+      prodOrCat ← Resource through ((products either cats).source)
       _ ← prodOrCat observe QueryLoggerSink to sink
     } yield ())
       .onFailure { th ⇒ logger.debug("Failure: {}", th.getMessage); halt }

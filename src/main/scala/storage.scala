@@ -24,7 +24,7 @@ import dsl.mongo.MongoQueryInterpreter
 import join.StorageModule
 import join.cassandra._
 import join.mongo._
-import mongo.channel.ScalazChannel
+import mongo.channel.ScalazStreamsOps
 import org.slf4j.Logger
 import com.mongodb.{DBObject, DB, MongoException}
 import rx.lang.scala.schedulers.ExecutionContextScheduler
@@ -36,7 +36,7 @@ import scalaz.concurrent.Task
 import scalaz.stream.{ Cause, io }
 import scalaz.stream.Process
 import scalaz.syntax.id._
-import _root_.mongo.channel.AkkaChannel
+import _root_.mongo.channel.AkkaStreamsOps
 import java.lang.{Long => JLong}
 
 //Split them up
@@ -374,7 +374,7 @@ package object storage {
 
       override def outer(qs: QFree[T#QueryAttributes], collection: String, log: Logger, ctx: T#Context): (T#Session) => T#Stream[T#Record] =
         session =>
-          AkkaChannel(Source.fromIterator(() => DbIterator.cassandraJoin(qs, session, collection, log)))
+          AkkaStreamsOps(Source.fromIterator(() => DbIterator.cassandraJoin(qs, session, collection, log)))
 
       override def inner(r: (T#Record) => QFree[T#QueryAttributes], collection: String, log: Logger, ctx: CassandraSource#Context):
         (T#Session) =>
@@ -382,12 +382,12 @@ package object storage {
             T#Stream[T#Record] = {
               session =>
                 outer =>
-                  AkkaChannel(Source.fromIterator(() => DbIterator.cassandraJoin(r(outer), session, collection, log)))
+                  AkkaStreamsOps(Source.fromIterator(() => DbIterator.cassandraJoin(r(outer), session, collection, log)))
       }
 
       override def log(session: T#Session, query: String, key: String, offset: Long, maxPartitionSize: Long, log: Logger,
                        ctx: T#Context): T#Stream[T#Record] =
-        AkkaChannel(Source.fromIterator(() => DbIterator.cassandraStream(session,query,key, offset, maxPartitionSize, log)))
+        AkkaStreamsOps(Source.fromIterator(() => DbIterator.cassandraStream(session,query,key, offset, maxPartitionSize, log)))
     }
 
     implicit object MongoStorageAkkaStream extends Storage[MongoSource] {
@@ -399,13 +399,13 @@ package object storage {
       override def outer(qs: QFree[T#QueryAttributes], collection: String, log: Logger, ctx: MongoSource#Context):
                          (T#Session) => T#Stream[T#Record] =
         session =>
-          AkkaChannel(Source.fromIterator(() => DbIterator.mongoJoin(qs, session, collection, log)))
+          AkkaStreamsOps(Source.fromIterator(() => DbIterator.mongoJoin(qs, session, collection, log)))
 
       override def inner(relation: (T#Record) => QFree[T#QueryAttributes], collection: String, log: Logger, ctx: T#Context):
         (T#Session) => (T#Record) => T#Stream[T#Record] =
           session =>
              outer =>
-               AkkaChannel(Source.fromIterator(() => DbIterator.mongoJoin(relation(outer), session, collection, log)))
+               AkkaStreamsOps(Source.fromIterator(() => DbIterator.mongoJoin(relation(outer), session, collection, log)))
 
       override def log(session: DB, query: String, key: String, offset: Long, maxPartitionSize: Long,
                        log: Logger, ctx: ExecutionContext) = ???
@@ -610,24 +610,24 @@ package object storage {
         }
 
       override def outer(qs: QFree[T#QueryAttributes], collection: String, logger: Logger, ctx: T#Context):
-        (T#Session) ⇒ ScalazChannel[T#Session, T#Record] =
+        (T#Session) ⇒ ScalazStreamsOps[T#Session, T#Record] =
           session ⇒
-            ScalazChannel[T#Session, T#Record](Process.eval(Task { session: T#Session ⇒
+            ScalazStreamsOps[T#Session, T#Record](Process.eval(Task { session: T#Session ⇒
               Task.delay(mongoR(qs, session, collection, logger))
             }(ctx)))
 
       override def inner(relation: (T#Record) ⇒ QFree[T#QueryAttributes],
                          collection: String, logger: Logger,
-                         ctx: T#Context): (T#Session) ⇒ (T#Record) ⇒ ScalazChannel[T#Session, T#Record] = {
+                         ctx: T#Context): (T#Session) ⇒ (T#Record) ⇒ ScalazStreamsOps[T#Session, T#Record] = {
         session ⇒
           outer ⇒
-            ScalazChannel[T#Session, T#Record](Process.eval(Task { client: T#Session ⇒
+            ScalazStreamsOps[T#Session, T#Record](Process.eval(Task { client: T#Session ⇒
               Task.delay(mongoR(relation(outer), client, collection, logger))
             }(ctx)))
       }
 
       override def log(session: DB, query: String, key: String, offset: Long, maxPartitionSize: Long,
-                       log: Logger, ctx: ExecutorService): ScalazChannel[DB, DBObject] = ???
+                       log: Logger, ctx: ExecutorService): ScalazStreamsOps[DB, DBObject] = ???
     }
 
     implicit object CassandraStorageProcess extends Storage[CassandraProcess] {
@@ -676,8 +676,8 @@ package object storage {
       }
 
       override def log(session: T#Session, query: String, key: String, offset: Long, maxPartitionSize: Long,
-                       log: Logger, ctx: T#Context): ScalazChannel[T#Session, T#Record] = {
-        ScalazChannel[T#Session, T#Record](Process.eval(Task { session: T#Session ⇒
+                       log: Logger, ctx: T#Context): ScalazStreamsOps[T#Session, T#Record] = {
+        ScalazStreamsOps[T#Session, T#Record](Process.eval(Task { session: T#Session ⇒
           Task.delay(io.iterator(Task.delay(new PartitionedIterator(session, query, key, offset, maxPartitionSize, log))))
 
         /*
@@ -702,18 +702,18 @@ package object storage {
 
       override def outer(qs: QFree[T#QueryAttributes],
                          collection: String, logger: Logger,
-                         ctx: T#Context): (T#Session) ⇒ ScalazChannel[T#Session, T#Record] =
+                         ctx: T#Context): (T#Session) ⇒ ScalazStreamsOps[T#Session, T#Record] =
         session ⇒
-          ScalazChannel[T#Session, T#Record](Process.eval(Task { client: T#Session ⇒
+          ScalazStreamsOps[T#Session, T#Record](Process.eval(Task { client: T#Session ⇒
             Task.delay(cassandraResource(qs, client, collection, logger))
           }(ctx)))
 
       override def inner(relation: (T#Record) ⇒ QFree[T#QueryAttributes],
                          collection: String, logger: Logger,
-                         ctx: T#Context): (T#Session) ⇒ (T#Record) ⇒ ScalazChannel[T#Session, T#Record] =
+                         ctx: T#Context): (T#Session) ⇒ (T#Record) ⇒ ScalazStreamsOps[T#Session, T#Record] =
         session ⇒
           outer ⇒
-            ScalazChannel[T#Session, T#Record](Process.eval(Task { client: T#Session ⇒
+            ScalazStreamsOps[T#Session, T#Record](Process.eval(Task { client: T#Session ⇒
               Task.delay(cassandraResource(relation(outer), client, collection, logger))
             }(ctx)))
     }

@@ -28,7 +28,7 @@ package object mongo {
   }
 
   trait MongoProcess extends Mongo {
-    override type Stream[Out] = _root_.mongo.channel.ScalazChannel[Session, Out]
+    override type Stream[Out] = _root_.mongo.channel.ScalazStreamsOps[Session, Out]
     override type Context = java.util.concurrent.ExecutorService
   }
 
@@ -41,7 +41,7 @@ package object mongo {
   trait MongoObsFetchError extends MongoObservable
 
   trait MongoSource extends Mongo {
-    override type Stream[Out] = _root_.mongo.channel.AkkaChannel[Out, akka.NotUsed]
+    override type Stream[Out] = _root_.mongo.channel.AkkaStreamsOps[Out, akka.NotUsed]
     override type Context = scala.concurrent.ExecutionContext
   }
 }

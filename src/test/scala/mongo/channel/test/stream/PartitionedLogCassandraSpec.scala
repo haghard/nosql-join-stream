@@ -95,14 +95,25 @@ class PartitionedLogCassandraSpec extends WordSpecLike with MustMatchers with Do
         Task.delay { logger.info(s"${row.getString(0)}:${row.getLong(2)}") }
       }
 
+      val Logger2 = lift[Task, Long] { in ⇒
+        Task.delay { logger.info(s"$in") }
+      }
+      val buffer2 = mutable.Buffer.empty[Long]
+      val BufferSink2 = io.fillBuffer(buffer2)
+
+      //sequence_nr, partition_nr, body
       val log = (eventlog.Log[T] from (queryByKey, actors(0), 0, maxPartitionSize))
+        .column[Long]("sequence_nr")
 
       (for {
-        row ← (eval(Task.now(session)) through log.out)
-        _ ← (row observe Logger to BufferSink)
+        row ← (eval(Task.now(session)) through log.source)
+        _ ← (row observe Logger2 to BufferSink2)
       } yield ())
         .onFailure { ex ⇒
-          eval_(Task.delay { logger.debug(s"CassandraProcessLog has been completed with error: ${ex.getMessage}") })
+          eval_(Task.delay {
+            logger.debug(s"CassandraProcessLog has been completed with error: ${ex.getMessage}")
+            org.scalatest.Assertions.fail(ex)
+          })
         }.onComplete {
           eval_(Task.delay {
             session.close()
@@ -110,7 +121,7 @@ class PartitionedLogCassandraSpec extends WordSpecLike with MustMatchers with Do
           })
         }.runLog.run
 
-      buffer.length mustEqual domainSize
+      buffer2.length mustEqual domainSize
     }
 
     "read 2 logs with different lenght through zip with CassandraProcess" in {
@@ -134,10 +145,14 @@ class PartitionedLogCassandraSpec extends WordSpecLike with MustMatchers with Do
       val logA = (eventlog.Log[T] from (queryByKey, actors(0), 3, maxPartitionSize))
       val logB = (eventlog.Log[T] from (queryByKey, actors(1), 15, maxPartitionSize))
 
-      (eval(Task.now(session)) through (logA zip logB).out)
+      (eval(Task.now(session)) through (logA zip logB).source)
         .flatMap { p ⇒
           (p to Logger2(count))
-        }.onComplete {
+        }.onFailure { ex ⇒
+          logger.debug(s"CassandraProcessLog2 has been completed with error: ${ex.getMessage}")
+          org.scalatest.Assertions.fail(ex)
+        }
+        .onComplete {
           eval_(Task.delay {
             session.close()
             client.close()

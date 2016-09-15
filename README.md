@@ -47,7 +47,9 @@ from mongo.channel.test.stream.{  PartitionedLogCassandraSpec, AkkaCassandraPart
   
   //to get Akka Source
   val dName = "akka.join-dispatcher"
-  val settings = ActorMaterializerSettings(system).withInputBuffer(1, 1).withDispatcher(dName)
+  val settings = ActorMaterializerSettings(system)
+      .withInputBuffer(32, 64)
+      .withDispatcher(dName)
       .withSupervisionStrategy(decider)
   implicit val Mat = ActorMaterializer(settings)
   implicit val dispatcher = system.dispatchers.lookup(dName)

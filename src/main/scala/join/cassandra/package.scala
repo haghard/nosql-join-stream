@@ -35,12 +35,12 @@ package object cassandra {
   }
 
   trait CassandraProcess extends Cassandra {
-    override type Stream[Out] = _root_.mongo.channel.ScalazChannel[Session, Out]
+    override type Stream[Out] = _root_.mongo.channel.ScalazStreamsOps[Session, Out]
     override type Context = java.util.concurrent.ExecutorService
   }
 
   trait CassandraSource extends Cassandra {
-    override type Stream[Out] = _root_.mongo.channel.AkkaChannel[Out, akka.NotUsed]
+    override type Stream[Out] = _root_.mongo.channel.AkkaStreamsOps[Out, akka.NotUsed]
     override type Context = scala.concurrent.ExecutionContext
   }
 

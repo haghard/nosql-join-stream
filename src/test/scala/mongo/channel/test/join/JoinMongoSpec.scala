@@ -64,7 +64,7 @@ class JoinMongoSpec extends Specification with ScalaFutures {
     val join = (Join[Module] inner (qLang, LANGS, qProg(_), PROGRAMMERS, TEST_DB))(cmd)
 
     (for {
-      joinLine ← eval(Task.now(client.getDB(TEST_DB))) through join.out
+      joinLine ← eval(Task.now(client.getDB(TEST_DB))) through join.source
       _ ← joinLine to SinkBuffer
     } yield ())
       .onFailure { ex ⇒ logger.debug(s"MongoProcess has been completed with error: ${ex.getMessage}"); halt }

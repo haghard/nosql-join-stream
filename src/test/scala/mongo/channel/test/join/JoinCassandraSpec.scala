@@ -62,7 +62,7 @@ class JoinCassandraSpec extends WordSpecLike with Matchers with TemperatureEnvir
       val join = (Join[CassandraProcess] inner (qSensors, SENSORS, qTemperature, TEMPERATURE, KEYSPACE))(cmb)
 
       (for {
-        row ← P.eval(Task.now(client connect KEYSPACE)) through join.out
+        row ← P.eval(Task.now(client connect KEYSPACE)) through join.source
         _ ← row observe LoggerS to BufferSink
       } yield ())
         .onFailure { ex ⇒
