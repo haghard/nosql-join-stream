@@ -83,11 +83,6 @@ package object dsl {
     case class CassandraSelect(q: String) extends StatementOp[CassandraReadSettings]
     case class CassandraParam(name: String, v: AnyRef, c: Class[_]) extends StatementOp[CassandraReadSettings]
 
-    /**
-     *
-     * @param q
-     * @return
-     */
     def select(q: String): QFree[CassandraReadSettings] = liftFC(CassandraSelect(q))
 
     /**

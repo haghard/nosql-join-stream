@@ -23,12 +23,11 @@ import scala.collection.JavaConverters._
 
 trait CassandraEnviroment {
 
-  //val logger = org.slf4j.LoggerFactory.getLogger("cassandra")
   val logger = org.slf4j.LoggerFactory.getLogger(classOf[CassandraEnviroment])
 
   val createKeyspace = s"""
       CREATE KEYSPACE IF NOT EXISTS journal
-      WITH replication = { 'class' : 'SimpleStrategy', 'replication_factor' : '2' }
+      WITH replication = { 'class' : 'SimpleStrategy', 'replication_factor' : '1' }
     """
 
   implicit val executor: java.util.concurrent.ExecutorService =

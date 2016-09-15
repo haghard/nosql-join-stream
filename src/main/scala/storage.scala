@@ -633,24 +633,24 @@ package object storage {
     implicit object CassandraStorageProcess extends Storage[CassandraProcess] {
       type T = CassandraProcess
 
-      override def connect(client: T#Client, resource: String):T#Session =
+      override def connect(client: T#Client, resource: String): T#Session =
         client connect resource
 
       private def cassandraResource(qs: QFree[T#QueryAttributes], session: T#Session,
-                                    collection: String, logger: Logger): Process[Task, T#Record] =
+        collection: String, logger: Logger): Process[Task, T#Record] = {
         io.resource(Task.delay {
           val attributes = (implicitly[QueryInterpreter[T]] interpret qs)
           val query = MessageFormat.format(attributes.query, collection)
           logger.debug(s"★ ★ ★ cassandra-join-process query:[ $query ] param: [ ${attributes.v} ]")
           attributes.v.fold(session.execute(query).iterator()) { r ⇒
-            (session execute(query, r.v)).iterator()
-          }
-        })(c ⇒ Task.delay(logger.debug("★ ★ ★ The cursor has been exhausted"))) { c ⇒
+              (session execute(query, r.v)).iterator()
+            }
+        })(c ⇒ Task.delay(logger.debug(s"Cursor has been exhausted"))) { c ⇒
           Task.delay {
-            if (c.hasNext) c.next
-            else throw Cause.Terminated(Cause.End)
+            if (c.hasNext) c.next else throw Cause.Terminated(Cause.End)
           }
         }
+    }
 
       private[storage] class PartitionedIterator(session: CassandraSource#Session, query: String,
                                                  key: String, offset: Long, maxPartitionSize: Long,

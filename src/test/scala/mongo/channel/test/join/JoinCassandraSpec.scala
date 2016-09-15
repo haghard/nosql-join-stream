@@ -65,11 +65,14 @@ class JoinCassandraSpec extends WordSpecLike with Matchers with TemperatureEnvir
         row ← P.eval(Task.now(client connect KEYSPACE)) through join.out
         _ ← row observe LoggerS to BufferSink
       } yield ())
-        .onFailure { ex ⇒ logger.debug(s"CassandraProcess has been completed with error: ${ex.getMessage}"); P.halt }
+        .onFailure { ex ⇒
+          logger.debug(s"CassandraProcess has been stopped with error: ${ex.getMessage}")
+          P.halt
+        }
         .onComplete {
           P.eval_(Task.delay {
             client.close()
-            logger.info("★ ★ ★  CassandraProcess has been completed")
+            logger.info("CassandraProcess has been completed")
           })
         }
         .runLog.run
@@ -101,17 +104,17 @@ class JoinCassandraSpec extends WordSpecLike with Matchers with TemperatureEnvir
             override def apply(t: Vector[String]) = t :+ next
           })
           if (count.getAndIncrement() % pageSize == 0) {
-            logger.info(s"★ ★ ★  Fetched page:[$pageSize] ★ ★ ★ ")
+            logger.info(s"★ ★ ★ Fetched page:[$pageSize] ★ ★ ★ ")
             request(pageSize)
           }
         }
         override def onError(e: Throwable) = {
-          logger.info(s"★ ★ ★  CassandraObservable has been completed with error: ${e.getMessage}")
+          logger.info(s"★ ★ ★ CassandraObservable has been completed with error: ${e.getMessage}")
           client.close()
           done.countDown()
         }
         override def onCompleted() = {
-          logger.info("★ ★ ★  CassandraObservable has been completed")
+          logger.info("★ ★ ★ CassandraObservable has been completed")
           client.close()
           done.countDown()
         }
@@ -121,10 +124,15 @@ class JoinCassandraSpec extends WordSpecLike with Matchers with TemperatureEnvir
         .observeOn(RxExecutor)
         .subscribe(S)
 
-      done.await()
       logger.info("Join with CassandraObservable: " + state.get())
-      if (count.get() != measureSize * sensors.size) {
-        fail("Error in Join with CassandraObservable")
+
+      if (!done.await(30, TimeUnit.SECONDS)) {
+        fail("Timeout error in Join with CassandraObservable")
+      }
+
+      val exp = measureSize * sensors.size
+      if (count.get() != exp) {
+        fail(s"Error in Join with CassandraObservable. actual:${count.get()} expected:${exp}")
       }
     }
   }
@@ -159,7 +167,7 @@ class JoinCassandraSpec extends WordSpecLike with Matchers with TemperatureEnvir
         .observeOn(RxExecutor)
         .subscribe(S)
 
-      if (!latch.await(5, TimeUnit.SECONDS)) {
+      if (!latch.await(30, TimeUnit.SECONDS)) {
         fail("Error in Join with CassandraObsCursorError")
       }
     }
@@ -195,7 +203,7 @@ class JoinCassandraSpec extends WordSpecLike with Matchers with TemperatureEnvir
         .observeOn(RxExecutor)
         .subscribe(S)
 
-      if (!done.await(5, TimeUnit.SECONDS)) {
+      if (!done.await(15, TimeUnit.SECONDS)) {
         fail("Error in Join with CassandraObsCursorError")
       }
     }

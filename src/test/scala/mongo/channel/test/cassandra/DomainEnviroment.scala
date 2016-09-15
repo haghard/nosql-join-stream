@@ -86,8 +86,7 @@ trait DomainEnviroment extends BeforeAndAfterAll with CassandraEnviroment { this
   val queryOps = new QueryOptions().setFetchSize(1000).setConsistencyLevel(ConsistencyLevel.ONE)
 
   override protected def beforeAll(): Unit = {
-    val f = new File(getClass.getClassLoader.getResource("cassandra_network_strategy.yaml").getPath)
-    CassandraServerHelper.startEmbeddedCassandra(f, "./cas-tmp", 10.seconds.toMillis)
+    EmbeddedCassandra.start
 
     val clusterBuilder = com.datastax.driver.core.Cluster.builder
       .addContactPointsWithPorts(cassandraHost)
@@ -102,15 +101,16 @@ trait DomainEnviroment extends BeforeAndAfterAll with CassandraEnviroment { this
     executeWithRetry(2) {
       (session execute createDomainTable)
       session.execute(new BatchStatement().addAll(insertData(session)))
-      session.close()
-      cluster.close()
     }
+
+    session.close()
+    cluster.close()
 
     super.beforeAll()
   }
 
   override protected def afterAll(): Unit = {
-    EmbeddedCassandraServerHelper.cleanEmbeddedCassandra()
+    EmbeddedCassandra.clean()
     super.afterAll()
   }
 }

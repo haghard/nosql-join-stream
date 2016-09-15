@@ -13,17 +13,13 @@
  */
 
 package mongo.channel.test.cassandra
-
-import java.io.File
 import com.datastax.driver.core.{ ConsistencyLevel, QueryOptions, BatchStatement }
 import org.scalatest.{ Suite, BeforeAndAfterAll }
 
 import scala.concurrent.forkjoin.ThreadLocalRandom
 
 trait TemperatureEnviroment extends CassandraEnviroment with BeforeAndAfterAll { this: Suite ⇒
-  import scala.concurrent.duration._
   import scala.collection.JavaConverters._
-  import org.cassandraunit.utils.EmbeddedCassandraServerHelper
   import java.lang.{ Long ⇒ JLong }
   import java.lang.{ Double ⇒ JDouble }
 
@@ -79,8 +75,7 @@ trait TemperatureEnviroment extends CassandraEnviroment with BeforeAndAfterAll {
   val queryOps = new QueryOptions().setFetchSize(1000).setConsistencyLevel(ConsistencyLevel.ONE)
 
   override protected def beforeAll(): Unit = {
-    val f = new File(getClass.getClassLoader.getResource("cassandra_network_strategy.yaml").getPath)
-    CassandraServerHelper.startEmbeddedCassandra(f, "./cas-tmp", 10.seconds.toMillis)
+    EmbeddedCassandra.start
 
     val clusterBuilder = com.datastax.driver.core.Cluster.builder
       .addContactPointsWithPorts(cassandraHost)
@@ -100,17 +95,21 @@ trait TemperatureEnviroment extends CassandraEnviroment with BeforeAndAfterAll {
     def temperature(): JDouble = ThreadLocalRandom.current().nextDouble(40.9d)
 
     val metersData = (1 to measureSize).flatMap { i ⇒
-      val ts = System.currentTimeMillis()
+      val ts = System.currentTimeMillis
       sensors.map(session.prepare(writeTemperature).bind(_: JLong, ts: JLong, temperature()))
     }.asJava
 
     session.execute(new BatchStatement().addAll(sensorsInsert))
     session.execute(new BatchStatement().addAll(metersData))
+
+    session.close
+    cluster.close
+
     super.beforeAll()
   }
 
   override protected def afterAll(): Unit = {
-    EmbeddedCassandraServerHelper.cleanEmbeddedCassandra()
+    EmbeddedCassandra.clean()
     super.afterAll()
   }
 }

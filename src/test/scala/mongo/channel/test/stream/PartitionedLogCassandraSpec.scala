@@ -36,7 +36,7 @@ class PartitionedLogCassandraSpec extends WordSpecLike with MustMatchers with Do
     override def onNext(row: CassandraObservable#Record) = {
       logger.info(s"${row.getString(0)}:${row.getLong(1)} ${row.getLong(2)} ★ ★ ★")
       if (count.incrementAndGet() % pageSize == 0) {
-        logger.info(s"★ ★ ★ page : {} ★ ★ ★", pageSize)
+        logger.info(s"★ ★ ★ page: {} ★ ★ ★", count.get())
         request(pageSize)
       }
     }
@@ -71,10 +71,10 @@ class PartitionedLogCassandraSpec extends WordSpecLike with MustMatchers with Do
         .observeOn(RxExecutor)
         .subscribe(subscriber(count, latch, session, client))
 
-      if (!latch.await(30, TimeUnit.SECONDS)) {
-        session.close()
-        client.close()
-      }
+      latch.await(30, TimeUnit.SECONDS)
+
+      session.close()
+      client.close()
       count.get() mustEqual domainSize - offset
     }
 

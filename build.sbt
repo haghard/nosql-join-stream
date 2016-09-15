@@ -33,10 +33,10 @@ scalacOptions ++= Seq(
 
 val MongoDriverVersion = "3.0.2"
 val CassandraDriverVersion = "3.0.1"
-val ScalazStreamVersion = "0.8.3"
-val RxScala = "0.26.1" //doesn't work with 0.26.2, need to figure out
+val ScalazStreamVersion = "0.8.4"
+val RxScala = "0.25.0" //doesn't work with 0.26.2, need to figure out
 val Logback = "1.1.2"
-val Akka="2.4.8"
+val Akka="2.4.9"
 
 val localMvnRepo = "/Volumes/Data/dev_build_tools/apache-maven-3.1.1/repository"
 
@@ -56,17 +56,18 @@ libraryDependencies ++= Seq(
   "org.mongodb"            %   "mongo-java-driver"        %   MongoDriverVersion     withSources(),
   "com.datastax.cassandra" %   "cassandra-driver-core"    %   CassandraDriverVersion withSources(),
   "org.scalaz.stream"      %%  "scalaz-stream"            %   ScalazStreamVersion    withSources(),
+  //"co.fs2"                 %%  "fs2-core"                 %   "0.9.0",
   "io.reactivex"           %%  "rxscala"                  %   RxScala                withSources(),
   "com.typesafe.akka"      %%  "akka-stream"              %   Akka                   withSources(),
   "com.google.protobuf"    %   "protobuf-java"            %  "2.5.0"                 withSources()
   //"ch.qos.logback"         %   "logback-classic"          %   Logback //should be commented for releases
 )
 
-//2.0.2.2
+//2.1.3.1
 //JoinMongoSpec failed with specs2-core 3.6.4
 libraryDependencies ++= Seq(
   "de.bwaldvogel"       %   "mongo-java-server" %   "1.4.4"   % "test" withSources(),
-  "org.cassandraunit"   %   "cassandra-unit"      % "2.1.3.1" % "test" excludeAll(ExclusionRule(organization = "ch.qos.logback")),
+  "org.cassandraunit"   %   "cassandra-unit"      % "3.0.0.1" % "test" excludeAll(ExclusionRule(organization = "ch.qos.logback")),
   "org.specs2"          %%  "specs2-core"       %   "2.4.17"  % "test" withSources(),
   "org.scalatest"       %%  "scalatest"         %   "2.2.5"   % "test",
   "com.typesafe.akka"   %%  "akka-testkit"      %   Akka      % "test",
