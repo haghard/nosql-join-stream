@@ -12,17 +12,17 @@
  * limitations under the License.
  */
 
-package mongo.channel.test
+package mongo.channel
 
 import com.mongodb.MongoClient
 import mongo._
 import java.util.Date
-import mongo.channel.create
+import mongo.channel.test.mongo.MongoIntegrationEnv
+import mongo.channel.test.mongo.MongoIntegrationEnv._
 import scalaz.\/
 import scalaz.concurrent.Task
 import scalaz.stream.Process._
 import java.util.concurrent.atomic.AtomicBoolean
-import MongoIntegrationEnv.{ executor, ids, sinkWithBuffer, mongoMock, TEST_DB, PRODUCT, CATEGORY }
 import org.specs2.mutable._
 
 trait MongoClientEnviromentLifecycle[T] extends org.specs2.mutable.After {
@@ -40,6 +40,7 @@ trait MongoClientEnviromentLifecycle[T] extends org.specs2.mutable.After {
 
   /**
    * Start mock mongo and return Process
+   *
    * @return
    */
   def Resource = {
@@ -148,6 +149,33 @@ class IntegrationMongoClientSpec extends Specification {
     }
 
     buffer must be equalTo (ids ++ ids ++ ids)
+  }
+
+  case class MongoRecord(article: Int, name: String, producer_num: Int, dt: java.util.Date)
+
+  "Collect result into case class" in new MongoClientEnviromentLifecycle[MongoRecord] {
+    val products = create[MongoClient] { b ⇒
+      b.q("dt" $gt new Date())
+      b.collection(PRODUCT)
+      b.db(TEST_DB)
+    }.as[MongoRecord]
+
+    var out = Vector[MongoRecord]()
+
+    (for {
+      dbObject ← Resource through products.source
+      _ ← dbObject to scalaz.stream.sink.lift[Task, Option[MongoRecord]] { v ⇒
+        Task.delay { v.foreach(r ⇒ out = out :+ r) }
+      }
+    } yield ())
+      .onFailure { th ⇒
+        logger.debug(s"Failure: {}", th.getMessage)
+        halt
+      }
+      .onComplete { eval(Task.delay(logger.debug(s"Interaction has been completed"))) }
+      .runLog.run
+
+    out.size === 4
   }
 
   "Interleave query streams nondeterminstically" in new MongoClientEnviromentLifecycle[String \/ Int] {

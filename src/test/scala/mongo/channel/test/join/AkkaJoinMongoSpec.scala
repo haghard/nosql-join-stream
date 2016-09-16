@@ -24,9 +24,10 @@ import akka.testkit.TestKit
 import com.mongodb.DBObject
 import akka.actor.ActorSystem
 import join.mongo.MongoSource
-import mongo.channel.test.MongoIntegrationEnv._
+import mongo.channel.test.mongo.{ MongoDbEnviroment, MongoIntegrationEnv }
+import MongoIntegrationEnv._
 import akka.stream.{ Supervision, ActorMaterializerSettings, ActorMaterializer }
-import mongo.channel.test.{ MongoIntegrationEnv, MongoDbEnviroment }
+import mongo.channel.test.mongo.MongoIntegrationEnv
 import org.scalatest.{ BeforeAndAfterAll, BeforeAndAfterEach, MustMatchers, WordSpecLike }
 import scala.util.{ Failure, Success }
 
@@ -81,9 +82,9 @@ class AkkaJoinMongoSpec extends TestKit(ActorSystem("akka-join-stream")) with Wo
         latch.countDown()
     }
 
-    latch.await(15, TimeUnit.SECONDS) mustBe true
-    logger.info("Seq: {}", resRef.get())
     c.close()
+    logger.info("Seq: {}", resRef.get())
+    latch.await(15, TimeUnit.SECONDS) mustBe true
     resRef.get().size mustBe MongoIntegrationEnv.programmersSize
   }
 }

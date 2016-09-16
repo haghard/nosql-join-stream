@@ -180,12 +180,27 @@ package object channel {
      * Allows you to extract specified field from [[com.mongodb.DBObject]] or [[com.datastax.driver.core.Row]] by name
      *
      */
-    def column[B](name: String)(implicit typeConverter: dbtypes.FromJavaConverter[B], tag: ClassTag[B]): ScalazStreamsOps[T, B] = {
-      /*com.google.common.reflect.TypeToken.of[B](clazz)*/
+    def column[B](name: String)(implicit converter: dbtypes.MongoTypeEncoder[B], tag: ClassTag[B]): ScalazStreamsOps[T, B] = {
+      import dbtypes._
       pipe(lift {
-        case r: DBObject ⇒ typeConverter.convert(r.get(name))
+        case r: DBObject ⇒ r.get(name).as[B]
         case r: Row      ⇒ r.get(name, tag.runtimeClass.asInstanceOf[Class[B]])
-        case other       ⇒ throw new Exception(s"DBObject expected but found ${other.getClass.getName}")
+        case other       ⇒ throw new Exception(s"Unsupported record type has been found:${other.getClass.getName}. We do support for DBObject and Row")
+      })
+    }
+
+    /**
+     * For case classes
+     */
+    import dbtypes._
+    def as[T: ClassTag: CassandraObjectParser: MongoObjectParser] = {
+      val cassandraParser = implicitly[CassandraObjectParser[T]]
+      val mongoParser = implicitly[MongoObjectParser[T]]
+      val fields = implicitly[ClassTag[T]].runtimeClass.getDeclaredFields.map(_.getName).toVector
+      pipe(lift {
+        case r: DBObject ⇒ mongoParser(r, fields, 0) //or  r.as[T]
+        case r: Row      ⇒ cassandraParser(r, fields, 0) //or  r.as[T]
+        case other       ⇒ throw new Exception(s"Unsupported record type has been found:${other.getClass.getName}. We do support for DBObject and Row")
       })
     }
   }

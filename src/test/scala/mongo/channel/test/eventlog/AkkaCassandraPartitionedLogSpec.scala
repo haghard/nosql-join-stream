@@ -12,7 +12,7 @@
  * limitations under the License.
  */
 
-package mongo.channel.test.stream
+package mongo.channel.test.eventlog
 
 import java.util.concurrent.{ TimeUnit, CountDownLatch }
 import java.util.concurrent.atomic.AtomicLong

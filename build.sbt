@@ -56,10 +56,10 @@ libraryDependencies ++= Seq(
   "org.mongodb"            %   "mongo-java-driver"        %   MongoDriverVersion     withSources(),
   "com.datastax.cassandra" %   "cassandra-driver-core"    %   CassandraDriverVersion withSources(),
   "org.scalaz.stream"      %%  "scalaz-stream"            %   ScalazStreamVersion    withSources(),
-  "co.fs2"                 %%  "fs2-core"                 %   "0.9.0",
   "io.reactivex"           %%  "rxscala"                  %   RxScala                withSources(),
   "com.typesafe.akka"      %%  "akka-stream"              %   Akka                   withSources(),
   "com.google.protobuf"    %   "protobuf-java"            %  "2.5.0"                 withSources(),
+  "com.chuusai"            %%  "shapeless"                %  "2.3.2",
   "ch.qos.logback"         %   "logback-classic"          %   Logback //should be commented for releases
 )
 

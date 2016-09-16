@@ -12,14 +12,14 @@
  * limitations under the License.
  */
 
-package mongo.channel.test
+package mongo.channel.test.mongo
 
 import java.util.Arrays._
 import java.util.Date
 import java.util.concurrent.{ ExecutorService, Executors, ThreadLocalRandom, TimeUnit }
 
-import _root_.mongo.channel.{ ScalazStreamsOps, ChannelBuilder, QuerySetting }
 import _root_.mongo.NamedThreadFactory
+import _root_.mongo.channel.{ ChannelBuilder, QuerySetting, ScalazStreamsOps }
 import com.mongodb._
 import de.bwaldvogel.mongo.MongoServer
 import de.bwaldvogel.mongo.backend.memory.MemoryBackend

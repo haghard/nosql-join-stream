@@ -16,7 +16,8 @@ package mongo.channel.test.join
 
 import java.util.concurrent.{ TimeUnit, CountDownLatch }
 import java.util.concurrent.atomic.AtomicLong
-import mongo.channel.test.{ MongoDbEnviroment, MongoIntegrationEnv }
+import com.mongodb.{ BasicDBObject, DBObject }
+import mongo.channel.test.mongo.{ MongoDbEnviroment, MongoIntegrationEnv }
 import org.scalatest.concurrent.ScalaFutures
 import org.specs2.mutable.Specification
 import rx.lang.scala.Subscriber
@@ -199,9 +200,10 @@ class JoinMongoSpec extends Specification with ScalaFutures {
         c.close()
       }
 
-      override def onCompleted() =
+      override def onCompleted() = {
         c.close()
-      logger.info("★ ★ ★  MongoObsFetchError has been completed")
+        logger.info("★ ★ ★  MongoObsFetchError has been completed")
+      }
     }
 
     query
@@ -209,5 +211,22 @@ class JoinMongoSpec extends Specification with ScalaFutures {
       .subscribe(S)
 
     c0.await(5, TimeUnit.SECONDS) mustEqual true
+  }
+
+  "Convert to case class" in {
+    import dbtypes._
+
+    case class DbRecord(persistence_id: String, partition_nr: Long, sequence_nr: Long)
+
+    val x: DBObject = new BasicDBObject()
+      .append("persistence_id", "key-a")
+      .append("partition_nr", 1l)
+      .append("sequence_nr", 100l)
+
+    val out = x.as[DbRecord]
+
+    println(out)
+
+    true mustEqual true
   }
 }

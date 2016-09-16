@@ -12,19 +12,21 @@
  * limitations under the License.
  */
 
-package mongo.channel.test.stream
+package mongo.channel.test.eventlog
 
-import java.util.concurrent.{ TimeUnit, CountDownLatch }
 import java.util.concurrent.atomic.AtomicLong
-import join.cassandra.{ CassandraProcess, CassandraObservable }
+import java.util.concurrent.{ CountDownLatch, TimeUnit }
+
+import join.cassandra.{ CassandraObservable, CassandraProcess }
 import mongo.channel.test.cassandra.DomainEnviroment
 import org.scalatest.{ MustMatchers, WordSpecLike }
 import rx.lang.scala.Subscriber
 
 import scala.collection.mutable
 import scalaz.concurrent.Task
+import scalaz.stream.Process._
 import scalaz.stream.io
-import scalaz.stream.sink._
+import scalaz.stream.sink.lift
 
 class PartitionedLogCassandraSpec extends WordSpecLike with MustMatchers with DomainEnviroment {
   val pageSize = 16
@@ -33,6 +35,7 @@ class PartitionedLogCassandraSpec extends WordSpecLike with MustMatchers with Do
                  session: CassandraObservable#Session, client: CassandraObservable#Client) = new Subscriber[CassandraObservable#Record] {
 
     override def onStart() = request(pageSize)
+
     override def onNext(row: CassandraObservable#Record) = {
       logger.info(s"${row.getString(0)}:${row.getLong(1)} ${row.getLong(2)} ★ ★ ★")
       if (count.incrementAndGet() % pageSize == 0) {
@@ -41,11 +44,12 @@ class PartitionedLogCassandraSpec extends WordSpecLike with MustMatchers with Do
       }
     }
 
-    override def onError(e: Throwable) = {
-      println(s"★ ★ ★ CassandraObservableLog has been completed with error: ${e.getMessage}")
+    override def onError(ex: Throwable) = {
+      println(s"★ ★ ★ CassandraObservableLog has been completed with error: ${ex.getMessage}")
       session.close()
       client.close()
       latch.countDown()
+      org.scalatest.Assertions.fail(ex)
     }
 
     override def onCompleted() = {
@@ -57,29 +61,10 @@ class PartitionedLogCassandraSpec extends WordSpecLike with MustMatchers with Do
 
   "PartitionedCassandraLog" must {
 
-    "read log with CassandraObservable" in {
-      val offset = 5
-      val latch = new CountDownLatch(1)
-      val count = new AtomicLong(0)
-      val client = com.datastax.driver.core.Cluster.builder
-        .addContactPointsWithPorts(cassandraHost)
-        .withQueryOptions(queryOps)
-        .build
-      implicit val session = (client connect "journal")
-
-      (eventlog.Log[CassandraObservable] from (queryByKey, actors.head, offset, maxPartitionSize))
-        .observeOn(RxExecutor)
-        .subscribe(subscriber(count, latch, session, client))
-
-      latch.await(30, TimeUnit.SECONDS)
-
-      session.close()
-      client.close()
-      count.get() mustEqual domainSize - offset
-    }
+    case class DbRecord(persistence_id: String, partition_nr: Long, sequence_nr: Long)
 
     "read log with CassandraProcess" in {
-      import scalaz.stream.Process._
+
       type T = CassandraProcess
       val clusterBuilder = com.datastax.driver.core.Cluster.builder
         .addContactPointsWithPorts(cassandraHost)
@@ -92,18 +77,22 @@ class PartitionedLogCassandraSpec extends WordSpecLike with MustMatchers with Do
       val BufferSink = io.fillBuffer(buffer)
 
       val Logger = lift[Task, T#Record] { row ⇒
-        Task.delay { logger.info(s"${row.getString(0)}:${row.getLong(2)}") }
+        Task.delay {
+          logger.info(s"${row.getString(0)}:${row.getLong(2)}")
+        }
       }
 
-      val Logger2 = lift[Task, Long] { in ⇒
-        Task.delay { logger.info(s"$in") }
+      val Logger2 = lift[Task, Option[DbRecord]] { in ⇒
+        Task.delay {
+          logger.info(s"$in")
+        }
       }
-      val buffer2 = mutable.Buffer.empty[Long]
+      val buffer2 = mutable.Buffer.empty[Option[DbRecord]]
       val BufferSink2 = io.fillBuffer(buffer2)
 
       //sequence_nr, partition_nr, body
-      val log = (eventlog.Log[T] from (queryByKey, actors(0), 0, maxPartitionSize))
-        .column[Long]("sequence_nr")
+      val log = (eventlog.Log[T] from (queryByKey, actors(0), 0, maxPartitionSize)).as[DbRecord]
+      //.column[Long]("body")
 
       (for {
         row ← (eval(Task.now(session)) through log.source)
@@ -160,6 +149,27 @@ class PartitionedLogCassandraSpec extends WordSpecLike with MustMatchers with Do
         }.runLog.run
 
       count.get() mustEqual domainSize - 15
+    }
+
+    "read log with CassandraObservable" in {
+      val offset = 5
+      val latch = new CountDownLatch(1)
+      val count = new AtomicLong(0)
+      val client = com.datastax.driver.core.Cluster.builder
+        .addContactPointsWithPorts(cassandraHost)
+        .withQueryOptions(queryOps)
+        .build
+      implicit val session = (client connect "journal")
+
+      (eventlog.Log[CassandraObservable] from (queryByKey, actors.head, offset, maxPartitionSize))
+        .observeOn(RxExecutor)
+        .subscribe(subscriber(count, latch, session, client))
+
+      latch.await(30, TimeUnit.SECONDS)
+
+      session.close()
+      client.close()
+      count.get() mustEqual domainSize - offset
     }
   }
 }

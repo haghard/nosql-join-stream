@@ -12,7 +12,7 @@
  * limitations under the License.
  */
 
-package mongo.channel.test
+package mongo.channel.test.mongo
 
 import _root_.join.StorageModule
 import com.mongodb.MongoClient
