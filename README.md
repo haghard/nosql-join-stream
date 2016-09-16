@@ -19,7 +19,7 @@ Where to get it
 ```
 resolvers += "haghard-bintray"  at "http://dl.bintray.com/haghard/releases"
 
-libraryDependencies +=  "com.haghard"  %% "nosql-join-stream" % "0.2.1"
+libraryDependencies +=  "com.haghard"  %% "nosql-join-stream" % "0.2.2"
 
 ```
 

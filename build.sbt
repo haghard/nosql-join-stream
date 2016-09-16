@@ -136,5 +136,5 @@ inConfig(Test)(compileInputs.in(compile) <<= compileInputs.in(compile).dependsOn
 //bintray:: tab
 //bintray::publish
 
-//git tag -a v0.2.1 -m 'version 0.2.1'
+//git tag -a v0.2.2 -m 'version 0.2.2'
 //git push origin master --tags
