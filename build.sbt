@@ -1,11 +1,7 @@
-import com.typesafe.sbt.SbtScalariform.ScalariformKeys
 import de.heikoseeberger.sbtheader.SbtHeader.autoImport.HeaderPattern
-import scalariform.formatter.preferences._
 import bintray.Keys._
 import com.scalapenos.sbt.prompt.SbtPrompt.autoImport._
-import com.typesafe.sbt.SbtScalariform
 import com.typesafe.sbt.SbtScalariform.ScalariformKeys
-
 
 organization := "com.haghard"
 
