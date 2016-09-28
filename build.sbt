@@ -11,7 +11,7 @@ organization := "com.haghard"
 
 name := "nosql-join-stream"
 
-version := "0.2.3"
+version := "0.2.4"
 
 scalaVersion := "2.11.8"
 
@@ -46,18 +46,8 @@ val localMvnRepo = "/Volumes/Data/dev_build_tools/apache-maven-3.1.1/repository"
 
 scalariformSettings
 
-/*
-ScalariformKeys.preferences := ScalariformKeys.preferences.value
-  .setPreference(RewriteArrowSymbols, true)
-  .setPreference(AlignParameters, true)
-  .setPreference(AlignSingleLineCaseStatements, true)
-*/
-
-
 ScalariformKeys.preferences in Compile  := formattingPreferences
 ScalariformKeys.preferences in Test     := formattingPreferences
-
-
 
 resolvers ++= Seq(
   "Local Maven Repository" at "file:///" + localMvnRepo,
