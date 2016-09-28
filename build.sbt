@@ -7,7 +7,7 @@ organization := "com.haghard"
 
 name := "nosql-join-stream"
 
-version := "0.2.5-snapshot"
+version := "0.2.5"
 
 scalaVersion := "2.11.8"
 
@@ -32,7 +32,7 @@ scalacOptions ++= Seq(
 )
 
 val MongoDriverVersion = "3.0.2"
-val CassandraDriverVersion = "3.1.0"
+val CassandraDriverVersion = "3.0.1"
 val ScalazStreamVersion = "0.8.4"
 val RxScala = "0.25.0" //doesn't work with 0.26.2, need to figure out
 val Logback = "1.1.2"
@@ -46,8 +46,9 @@ ScalariformKeys.preferences in Compile  := formattingPreferences
 ScalariformKeys.preferences in Test     := formattingPreferences
 
 resolvers ++= Seq(
-  "Local Maven Repository" at "file:///" + localMvnRepo,
-  "Scalaz" at "http://dl.bintray.com/scalaz/releases"
+  Resolver.typesafeRepo("releases"),
+  "Scalaz" at "http://dl.bintray.com/scalaz/releases",
+  "Local Maven Repository" at "file:///" + localMvnRepo
 )
 
 libraryDependencies ++= Seq(
@@ -95,7 +96,7 @@ licenses += ("Apache-2.0", url("http://www.apache.org/licenses/"))
 
 bintrayOrganization in bintray := Some("haghard")
 
-repository in bintray := "snapshot" //"releases"
+repository in bintray := "releases" //"snapshot"
 
 publishMavenStyle := true
 //publishTo := Some(Resolver.file("file",  new File(localMvnRepo)))
