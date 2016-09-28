@@ -37,12 +37,16 @@ object MongoIntegrationEnv {
 
   private val logger = org.slf4j.LoggerFactory.getLogger("mongo-streams")
 
-  implicit val executor = Executors.newFixedThreadPool(Runtime.getRuntime.availableProcessors(),
-    new NamedThreadFactory("mongo-executor"))
+  implicit val executor = Executors.newFixedThreadPool(
+    Runtime.getRuntime.availableProcessors(),
+    new NamedThreadFactory("mongo-executor")
+  )
 
   val categoryIds = lift { obj: DBObject ⇒
-    (obj.get("name").asInstanceOf[String],
-      asScalaBuffer(obj.get("categories").asInstanceOf[java.util.List[Int]]))
+    (
+      obj.get("name").asInstanceOf[String],
+      asScalaBuffer(obj.get("categories").asInstanceOf[java.util.List[Int]])
+    )
   }
 
   val langs = IndexedSeq("Java", "C++", "ObjectiveC", "Scala", "Groovy")
@@ -160,7 +164,8 @@ object MongoIntegrationEnv {
                     val rpLine = setting.readPref.fold("Empty") { p ⇒ p.asMongoDbReadPreference.toString }
                     logger.debug(s"Cursor:${cursor.##} ReadPref:[$rpLine}] Server:[${cursor.getServerAddress}] Sort:[${setting.sortQuery}] Skip:[${setting.skip}] Query:[${setting.q}]")
                     cursor
-                  })(cursor ⇒ Task.delay(cursor.close)) { c ⇒
+                  }
+                )(cursor ⇒ Task.delay(cursor.close)) { c ⇒
                     Task.delay {
                       if (c.hasNext) {
                         Thread.sleep(200) //for test

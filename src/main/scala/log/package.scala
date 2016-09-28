@@ -19,40 +19,45 @@ import scala.reflect.ClassTag
 
 package object eventlog {
 
-  /*
-     Based on akka-cassandra-persistence schema
-     5000000l - default PartitionSize from akka-cassandra-persistence
-
-          +-------+--------+-------+
-          |0:body |1: body |2: body|
-     +----+-------+--------+-------+
-     |a:0 |xxx    |xxx     |xxx    |
-     +----+-------+--------+-------+
-
-          +------ +--------+--------+
-         |0:body |1: body |2 :body |
-     +---+-------+--------+--------+
-     |a:1|xxx    |xxx     |xxx     |
-     +---+-------+--------+--------+
-
-         +------ +--------+--------+
-         |0:body |1: body |2 :body |
-     +---+-------+--------+--------+
-     |b:0|xxx    |xxx     |xxx     |
-     +---+-------+--------+--------+
-
-     Partition key - (persistence_id, partition_nr)
-     Clustering key - sequence_nr
-
-     Log with iterator that goes across partition_nr for specific persistence_id
-
-    */
-  case class Log[M <: StorageModule : Storage](implicit ctx: M#Context, session: M#Session, t: ClassTag[M]) {
+  /**
+   * Based on akka-cassandra-persistence schema
+   * 5000000l - default PartitionSize from akka-cassandra-persistence
+   *
+   * Partition:0
+   *
+   * +-------+--------+-------+
+   * |0:body |1: body |2: body|
+   * +----+-------+--------+-------+
+   * |a:0 |xxx    |xxx     |xxx    |
+   * +----+-------+--------+-------+
+   *
+   * Partition:1
+   *
+   * +----------------+---------------+--------------+
+   * |50000001:body   |50000002:body  |5000003 :body |
+   * +---+----------------+---------------+--------------+
+   * |a:1|xxx             |xxx            |xxx            |
+   * +---+----------------+---------------+--------------+
+   *
+   * Partition:2
+   *
+   * +-------+--------+--------+
+   * |0:body |1: body |2 :body |
+   * +---+-------+--------+--------+
+   * |b:0|xxx    |xxx     |xxx     |
+   * +---+-------+--------+--------+
+   *
+   * Partition key - (persistence_id, partition_nr)
+   * Clustering key - sequence_nr
+   *
+   * Log with iterator that goes across partition_nr for specific persistence_id
+   *
+   */
+  case class Log[M <: StorageModule: Storage](implicit ctx: M#Context, session: M#Session, t: ClassTag[M]) {
     val logger = org.slf4j.LoggerFactory.getLogger(s"${t.runtimeClass.getName.dropWhile(_ != '$').drop(1)}-source-producer")
 
     def from(query: String, key: String, offset: Long = 0, maxPartitionSize: Long = 5000000l): M#Stream[M#Record] = {
-      val storage = Storage[M]
-      storage.log(session, query, key, offset, maxPartitionSize, logger, ctx)
+      Storage[M].log(session, query, key, offset, maxPartitionSize, logger, ctx)
     }
   }
 }

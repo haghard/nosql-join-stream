@@ -29,7 +29,7 @@ import scalaz.stream.io
 import scalaz.stream.sink.lift
 
 class PartitionedLogCassandraSpec extends WordSpecLike with MustMatchers with DomainEnviroment {
-  val pageSize = 16
+  val pageSize = maxPartitionSize
 
   def subscriber(count: AtomicLong, latch: CountDownLatch,
                  session: CassandraObservable#Session, client: CassandraObservable#Client) = new Subscriber[CassandraObservable#Record] {

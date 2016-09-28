@@ -28,7 +28,7 @@ import org.scalatest.{ BeforeAndAfterAll, BeforeAndAfterEach, MustMatchers, Word
 import scala.util.{ Failure, Success }
 
 class AkkaJoinCassandraSpec extends TestKit(ActorSystem("akka-join-stream")) with WordSpecLike
-    with MustMatchers with BeforeAndAfterEach with BeforeAndAfterAll with TemperatureEnviroment {
+  with MustMatchers with BeforeAndAfterEach with BeforeAndAfterAll with TemperatureEnviroment {
 
   import dsl.cassandra._
 

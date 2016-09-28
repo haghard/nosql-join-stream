@@ -44,6 +44,11 @@ package object cassandra {
     override type Context = scala.concurrent.ExecutionContext
   }
 
+  /*trait AsyncCassandraSource extends Cassandra {
+    override type Stream[Out] = akka.stream.scaladsl.Source[Out, akka.NotUsed]
+    override type Context = scala.concurrent.ExecutionContext
+  }*/
+
   trait CassandraObsCursorError extends CassandraObservable
   trait CassandraObsFetchError extends CassandraObservable
 }

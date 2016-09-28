@@ -1,7 +1,11 @@
 import com.typesafe.sbt.SbtScalariform.ScalariformKeys
+import de.heikoseeberger.sbtheader.SbtHeader.autoImport.HeaderPattern
 import scalariform.formatter.preferences._
 import bintray.Keys._
 import com.scalapenos.sbt.prompt.SbtPrompt.autoImport._
+import com.typesafe.sbt.SbtScalariform
+import com.typesafe.sbt.SbtScalariform.ScalariformKeys
+
 
 organization := "com.haghard"
 
@@ -32,20 +36,28 @@ scalacOptions ++= Seq(
 )
 
 val MongoDriverVersion = "3.0.2"
-val CassandraDriverVersion = "3.0.1"
+val CassandraDriverVersion = "3.1.0"
 val ScalazStreamVersion = "0.8.4"
 val RxScala = "0.25.0" //doesn't work with 0.26.2, need to figure out
 val Logback = "1.1.2"
-val Akka="2.4.9"
+val Akka="2.4.10"
 
 val localMvnRepo = "/Volumes/Data/dev_build_tools/apache-maven-3.1.1/repository"
 
 scalariformSettings
 
+/*
 ScalariformKeys.preferences := ScalariformKeys.preferences.value
   .setPreference(RewriteArrowSymbols, true)
   .setPreference(AlignParameters, true)
   .setPreference(AlignSingleLineCaseStatements, true)
+*/
+
+
+ScalariformKeys.preferences in Compile  := formattingPreferences
+ScalariformKeys.preferences in Test     := formattingPreferences
+
+
 
 resolvers ++= Seq(
   "Local Maven Repository" at "file:///" + localMvnRepo,
@@ -59,8 +71,8 @@ libraryDependencies ++= Seq(
   "io.reactivex"           %%  "rxscala"                  %   RxScala                withSources(),
   "com.typesafe.akka"      %%  "akka-stream"              %   Akka                   withSources(),
   "com.google.protobuf"    %   "protobuf-java"            %  "2.5.0"                 withSources(),
-  "com.chuusai"            %%  "shapeless"                %  "2.3.2",
-  "ch.qos.logback"         %   "logback-classic"          %   Logback //should be commented for releases
+  "com.chuusai"            %%  "shapeless"                %  "2.3.2"
+  //"ch.qos.logback"         %   "logback-classic"          %   Logback //should be commented for releases
 )
 
 //2.1.3.1
@@ -69,7 +81,7 @@ libraryDependencies ++= Seq(
   "de.bwaldvogel"       %   "mongo-java-server" %   "1.4.4"   % "test" withSources(),
   "org.cassandraunit"   %   "cassandra-unit"      % "3.0.0.1" % "test" excludeAll(ExclusionRule(organization = "ch.qos.logback")),
   "org.specs2"          %%  "specs2-core"       %   "2.4.17"  % "test" withSources(),
-  "org.scalatest"       %%  "scalatest"         %   "2.2.5"   % "test",
+  "org.scalatest"       %%  "scalatest"         %   "2.2.6"   % "test",
   "com.typesafe.akka"   %%  "akka-testkit"      %   Akka      % "test",
   "com.typesafe.akka"   %%  "akka-slf4j"        %   Akka      % "test"
 )
@@ -123,6 +135,16 @@ headers := Map(
       |""".stripMargin
     )
 )
+
+
+def formattingPreferences = {
+  import scalariform.formatter.preferences._
+  FormattingPreferences()
+    .setPreference(RewriteArrowSymbols, true)
+    .setPreference(AlignParameters, true)
+    .setPreference(AlignSingleLineCaseStatements, true)
+    .setPreference(SpacesAroundMultiImports, true)
+}
 
 cancelable in Global := true
 

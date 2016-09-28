@@ -32,7 +32,7 @@ import org.scalatest.{ BeforeAndAfterAll, BeforeAndAfterEach, MustMatchers, Word
 import scala.util.{ Failure, Success }
 
 class AkkaJoinMongoSpec extends TestKit(ActorSystem("akka-join-stream")) with WordSpecLike
-    with MustMatchers with BeforeAndAfterEach with BeforeAndAfterAll {
+  with MustMatchers with BeforeAndAfterEach with BeforeAndAfterAll {
 
   //val logger = org.slf4j.LoggerFactory.getLogger("akka-join-stream")
 

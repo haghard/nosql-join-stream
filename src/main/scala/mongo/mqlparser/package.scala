@@ -195,7 +195,7 @@ package object mqlparser {
         val start: MqlRight = right.head
         val dbObject = new BasicDBObject(start.operation, start.value.value)
         val anonymousDbObject = loop(right.tail, dbObject)
-        (field.clean -> anonymousDbObject)
+        (field.clean → anonymousDbObject)
       }
     }
 

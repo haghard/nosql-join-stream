@@ -74,7 +74,6 @@ package object dbtypes {
     def apply(obj: DBObject, fields: Vector[String], ind: Int): Option[A]
   }
 
-
   implicit val intP = new MongoObjectParser[Int] {
     override def apply(obj: DBObject, fields: Vector[String], ind: Int): Option[Int] = {
       Try(obj.get(fields(ind)).asInstanceOf[Int]).map(Some(_)).getOrElse(None)
@@ -111,14 +110,14 @@ package object dbtypes {
       if (fields.size >= ind) Some(HNil) else None
   }
 
-  implicit def hConsParserMongo[H: MongoObjectParser, T <: HList : MongoObjectParser]: MongoObjectParser[H :: T] =
+  implicit def hConsParserMongo[H: MongoObjectParser, T <: HList: MongoObjectParser]: MongoObjectParser[H :: T] =
     new MongoObjectParser[H :: T] {
       def apply(obj: DBObject, fields: Vector[String], acc: Int): Option[H :: T] = {
         fields match {
-          case h +: rest =>
+          case h +: rest ⇒
             for {
-              head <- implicitly[MongoObjectParser[H]].apply(obj, fields, acc)
-              tail <- implicitly[MongoObjectParser[T]].apply(obj, fields, acc + 1)
+              head ← implicitly[MongoObjectParser[H]].apply(obj, fields, acc)
+              tail ← implicitly[MongoObjectParser[T]].apply(obj, fields, acc + 1)
             } yield head :: tail
         }
       }
@@ -128,10 +127,9 @@ package object dbtypes {
   implicit def caseClassParserMongo[A, R <: HList](implicit Gen: Generic.Aux[A, R], parser: MongoObjectParser[R]) =
     new MongoObjectParser[A] {
       def apply(obj: DBObject, fields: Vector[String], acc: Int): Option[A] = {
-        parser(obj, fields, acc).map { hlist => Gen.from(hlist) }
+        parser(obj, fields, acc).map { hlist ⇒ Gen.from(hlist) }
       }
     }
-
 
   implicit class MongoEncoderOps(val obj: DBObject) {
     def as[T](implicit parser: MongoObjectParser[T], tag: ClassTag[T]): Option[T] = {
@@ -143,7 +141,6 @@ package object dbtypes {
   trait CassandraObjectParser[A] {
     def apply(obj: Row, fields: Vector[String], ind: Int): Option[A]
   }
-
 
   implicit val cInt = new CassandraObjectParser[Int] {
     override def apply(obj: Row, fields: Vector[String], ind: Int): Option[Int] = {
@@ -180,14 +177,14 @@ package object dbtypes {
       if (fields.size >= ind) Some(HNil) else None
   }
 
-  implicit def hConsParserCassandra[H: CassandraObjectParser, T <: HList : CassandraObjectParser]: CassandraObjectParser[H :: T] =
+  implicit def hConsParserCassandra[H: CassandraObjectParser, T <: HList: CassandraObjectParser]: CassandraObjectParser[H :: T] =
     new CassandraObjectParser[H :: T] {
       def apply(obj: Row, fields: Vector[String], acc: Int): Option[H :: T] = {
         fields match {
-          case h +: rest =>
+          case h +: rest ⇒
             for {
-              head <- implicitly[CassandraObjectParser[H]].apply(obj, fields, acc)
-              tail <- implicitly[CassandraObjectParser[T]].apply(obj, fields, acc + 1)
+              head ← implicitly[CassandraObjectParser[H]].apply(obj, fields, acc)
+              tail ← implicitly[CassandraObjectParser[T]].apply(obj, fields, acc + 1)
             } yield head :: tail
         }
       }
@@ -197,10 +194,9 @@ package object dbtypes {
   implicit def caseClassParserCassandra[A, R <: HList](implicit Gen: Generic.Aux[A, R], parser: CassandraObjectParser[R]) =
     new CassandraObjectParser[A] {
       def apply(obj: Row, fields: Vector[String], acc: Int): Option[A] = {
-        parser(obj, fields, acc).map { hlist => Gen.from(hlist) }
+        parser(obj, fields, acc).map { hlist ⇒ Gen.from(hlist) }
       }
     }
-
 
   implicit class CassandraEncoderOps(val obj: Row) {
     def as[T](implicit parser: CassandraObjectParser[T], tag: ClassTag[T]): Option[T] = {

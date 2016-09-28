@@ -40,7 +40,7 @@ class JoinMongoSpec extends Specification with ScalaFutures {
 
   val qLang = for {
     _ ← "index" $gte 0 $lte 5
-    _ ← sort("index" -> Order.Ascending)
+    _ ← sort("index" → Order.Ascending)
     q ← limit(6)
   } yield q
 

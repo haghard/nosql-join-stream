@@ -90,13 +90,11 @@ package object channel {
      * @return DBChannel[T, C]
      */
     def zipWith[B, C](stream: ScalazStreamsOps[T, B])(implicit f: (A, B) ⇒ C): ScalazStreamsOps[T, C] = ScalazStreamsOps {
-      val zipper: ((T ⇒ Task[Process[Task, A]], T ⇒ Task[Process[Task, B]]) ⇒ (T ⇒ Task[Process[Task, C]])) = {
-        (fa, fb) ⇒
-          (r: T) ⇒
-            for {
-              x ← fa(r)
-              y ← fb(r)
-            } yield x.zipWith(y)(f)
+      val zipper: ((T ⇒ Task[Process[Task, A]], T ⇒ Task[Process[Task, B]]) ⇒ (T ⇒ Task[Process[Task, C]])) = { (fa, fb) ⇒ (r: T) ⇒
+        for {
+          x ← fa(r)
+          y ← fb(r)
+        } yield x.zipWith(y)(f)
       }
 
       def deterministicZip[I, I2, O](f: (I, I2) ⇒ O): Tee[I, I2, O] =
@@ -283,12 +281,12 @@ package object channel {
                 }
                 logger.debug(s"query:[${setting.q}] ReadPrefs:[${cursor.getReadPreference}}] Server:[${cursor.getServerAddress}] Sort:[${setting.sortQuery}] Limit:[${setting.limit}] Skip:[${setting.skip}]")
                 cursor
-              })(c ⇒ Task.delay(c.close())) { c ⇒
+              }
+            )(c ⇒ Task.delay(c.close())) { c ⇒
                 Task.delay(if (c.hasNext) c.next else throw Cause.Terminated(Cause.End))
               }
           }(ES)
-        })
-        )
+        }))
       })
   }
 
@@ -311,7 +309,8 @@ package object channel {
                 }
                 logger.debug(s"query:[${setting.q}] ReadPrefs:[${cursor.getReadPreference}}] Server:[${cursor.getServerAddress}] Sort:[${setting.sortQuery}] Limit:[${setting.limit}] Skip:[${setting.skip}]")
                 cursor
-              })(c ⇒ Task.delay(c.close())) { c ⇒
+              }
+            )(c ⇒ Task.delay(c.close())) { c ⇒
                 Task.delay(if (c.hasNext) c.next else throw Cause.Terminated(Cause.End))
               }
           }(ES)

@@ -14,21 +14,18 @@
 
 package mongo.channel.test.cassandra
 
-import java.io.File
 import com.datastax.driver.core.{ ConsistencyLevel, QueryOptions, BatchStatement, Session }
-import org.cassandraunit.utils.EmbeddedCassandraServerHelper
 import org.scalatest.{ Suite, BeforeAndAfterAll }
 import rx.lang.scala.schedulers.ExecutionContextScheduler
 import scala.concurrent.ExecutionContext
-import scala.concurrent.duration._
 import scala.collection.JavaConverters._
 import java.lang.{ Long ⇒ JLong }
 
 trait DomainEnviroment extends BeforeAndAfterAll with CassandraEnviroment { this: Suite ⇒
   val DOMAIN = "domain"
 
-  val maxPartitionSize = 16l
-  val domainSize = 100l
+  val maxPartitionSize = 256
+  val domainSize = 5000l
 
   def RxExecutor = ExecutionContextScheduler(ExecutionContext.fromExecutor(executor))
 
@@ -40,8 +37,8 @@ trait DomainEnviroment extends BeforeAndAfterAll with CassandraEnviroment { this
    * |a:0 |xxx    |xxx     |xxx    |
    * +----+-------+--------+-------+
    *
-   *     +------ +--------+--------+
-   *     |0:body |1: body |2 :body |
+   *     +-------+--------+--------+
+   *     |10:body|11:body |12:body |
    * +---+-------+--------+--------+
    * |a:1|xxx    |xxx     |xxx     |
    * +---+-------+--------+--------+
@@ -56,7 +53,6 @@ trait DomainEnviroment extends BeforeAndAfterAll with CassandraEnviroment { this
    * Clustering key - sequence_nr
    *
    */
-
   val createDomainTable = s"""
     CREATE TABLE IF NOT EXISTS journal.${DOMAIN} (
       persistence_id text,
