@@ -17,14 +17,15 @@ package mongo.channel.test.join
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicReference
 
-import join.Join
-import akka.testkit.TestKit
 import akka.actor.ActorSystem
+import akka.stream.{ ActorMaterializer, ActorMaterializerSettings, Supervision }
+import akka.testkit.TestKit
+import com.datastax.driver.core.{ Cluster, Row ⇒ CRow }
+import join.Join
 import join.cassandra.CassandraSource
 import mongo.channel.test.cassandra.TemperatureEnviroment
-import akka.stream.{ Supervision, ActorMaterializerSettings, ActorMaterializer }
-import com.datastax.driver.core.{ Row ⇒ CRow, Cluster }
 import org.scalatest.{ BeforeAndAfterAll, BeforeAndAfterEach, MustMatchers, WordSpecLike }
+
 import scala.util.{ Failure, Success }
 
 class AkkaJoinCassandraSpec extends TestKit(ActorSystem("akka-join-stream")) with WordSpecLike
@@ -70,19 +71,17 @@ class AkkaJoinCassandraSpec extends TestKit(ActorSystem("akka-join-stream")) wit
       val latch = new CountDownLatch(1)
       val resRef = new AtomicReference(List[String]())
 
-      val join = (Join[CassandraSource] inner (qSensors, SENSORS, qTemperature, TEMPERATURE, KEYSPACE))(cmb)
-
-      val future = join.source.runFold(List.empty[String]) { (acc, cur) ⇒ cur :: acc }
-
-      future.onComplete {
-        case Success(r) ⇒
-          resRef.set(r)
-          latch.countDown()
-          c.close
-        case Failure(ex) ⇒
-          fail("★ ★ ★ CassandraAkkaStream join has been competed with error:" + ex.getMessage)
-          latch.countDown()
-      }
+      (Join[CassandraSource] inner (qSensors, SENSORS, qTemperature, TEMPERATURE, KEYSPACE))(cmb)
+        .source.runFold(List.empty[String]) { (acc, cur) ⇒ cur :: acc }
+        .onComplete {
+          case Success(r) ⇒
+            resRef.set(r)
+            latch.countDown()
+            c.close
+          case Failure(ex) ⇒
+            fail("★ ★ ★ CassandraAkkaStream join has been competed with error:" + ex.getMessage)
+            latch.countDown()
+        }
 
       latch.await()
       resRef.get().size mustBe (measureSize * sensors.size)

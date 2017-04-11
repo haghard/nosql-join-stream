@@ -14,21 +14,22 @@
 
 package mongo.channel.test.join
 
-import java.util.concurrent.{ TimeUnit, CountDownLatch }
 import java.util.concurrent.atomic.AtomicReference
+import java.util.concurrent.{ CountDownLatch, TimeUnit }
 
-import mongo._
-import join.Join
-import dsl.mongo._
+import akka.actor.ActorSystem
+import akka.stream.{ ActorMaterializer, ActorMaterializerSettings, Supervision }
 import akka.testkit.TestKit
 import com.mongodb.DBObject
-import akka.actor.ActorSystem
+import dsl.mongo._
+import join.Join
 import join.mongo.MongoSource
+import mongo._
+import mongo.channel.test.mongo.MongoIntegrationEnv._
 import mongo.channel.test.mongo.{ MongoDbEnviroment, MongoIntegrationEnv }
-import MongoIntegrationEnv._
-import akka.stream.{ Supervision, ActorMaterializerSettings, ActorMaterializer }
-import mongo.channel.test.mongo.MongoIntegrationEnv
+import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.{ BeforeAndAfterAll, BeforeAndAfterEach, MustMatchers, WordSpecLike }
+
 import scala.util.{ Failure, Success }
 
 class AkkaJoinMongoSpec extends TestKit(ActorSystem("akka-join-stream")) with WordSpecLike
@@ -48,7 +49,7 @@ class AkkaJoinMongoSpec extends TestKit(ActorSystem("akka-join-stream")) with Wo
       s"""[PK:${outer.get("index")}] - [FK:${inner.get("lang")} - ${inner.get("name")}]"""
 
   def decider(c: MongoSource#Client): Supervision.Decider = {
-    case _ ⇒
+    case ex: Throwable ⇒
       c.close()
       Supervision.Stop
   }
@@ -59,7 +60,7 @@ class AkkaJoinMongoSpec extends TestKit(ActorSystem("akka-join-stream")) with Wo
   "MongoJoin with Akka Streams" in new MongoDbEnviroment {
     initMongo
     implicit val c = client
-    val settings = ActorMaterializerSettings(system)
+    val settings = ActorMaterializerSettings.create(system)
       .withInputBuffer(32, 64)
       .withDispatcher(dName)
       .withSupervisionStrategy(decider(c))
@@ -70,21 +71,21 @@ class AkkaJoinMongoSpec extends TestKit(ActorSystem("akka-join-stream")) with Wo
 
     val joinSource = Join[MongoSource].inner(qLang, LANGS, qProg(_), PROGRAMMERS, TEST_DB)(cmb)
 
-    val futureSeq = joinSource.source
+    joinSource.source
       .runFold(List.empty[String]) { (acc, cur) ⇒ cur :: acc }
+      .onComplete {
+        case Success(r) ⇒
+          resRef.set(r)
+          c.close()
+          latch.countDown()
+        case Failure(ex) ⇒
+          logger.error("★ ★ ★ MongoAkkaStream join has been competed with error", ex)
+          c.close()
+          latch.countDown()
+      }
 
-    futureSeq.onComplete {
-      case Success(r) ⇒
-        resRef.set(r)
-        latch.countDown()
-      case Failure(ex) ⇒
-        logger.info("★ ★ ★ MongoAkkaStream join has been competed with error {}", ex)
-        latch.countDown()
-    }
-
-    c.close()
-    logger.info("Seq: {}", resRef.get())
     latch.await(15, TimeUnit.SECONDS) mustBe true
+    //logger.info("Seq: {}", resRef.get())
     resRef.get().size mustBe MongoIntegrationEnv.programmersSize
   }
 }

@@ -7,7 +7,7 @@ organization := "com.haghard"
 
 name := "nosql-join-stream"
 
-version := "0.2.5"
+version := "0.2.6"
 
 scalaVersion := "2.11.8"
 
@@ -32,11 +32,11 @@ scalacOptions ++= Seq(
 )
 
 val MongoDriverVersion = "3.0.2"
-val CassandraDriverVersion = "3.0.1"
-val ScalazStreamVersion = "0.8.4"
+val CassandraDriverVersion = "3.1.1"
+val ScalazStreamVersion = "0.8.5"
 val RxScala = "0.25.0" //doesn't work with 0.26.2, need to figure out
 val Logback = "1.1.2"
-val Akka="2.4.10"
+val Akka = "2.4.16"
 
 val localMvnRepo = "/Volumes/Data/dev_build_tools/apache-maven-3.1.1/repository"
 
@@ -52,23 +52,23 @@ resolvers ++= Seq(
 )
 
 libraryDependencies ++= Seq(
-  "org.mongodb"            %   "mongo-java-driver"        %   MongoDriverVersion     withSources(),
-  "com.datastax.cassandra" %   "cassandra-driver-core"    %   CassandraDriverVersion withSources(),
-  "org.scalaz.stream"      %%  "scalaz-stream"            %   ScalazStreamVersion    withSources(),
-  "io.reactivex"           %%  "rxscala"                  %   RxScala                withSources(),
-  "com.typesafe.akka"      %%  "akka-stream"              %   Akka                   withSources(),
-  "com.google.protobuf"    %   "protobuf-java"            %  "2.5.0"                 withSources(),
-  "com.chuusai"            %%  "shapeless"                %  "2.3.2"
+  "org.mongodb"              %   "mongo-java-driver"        %   MongoDriverVersion     withSources(),
+  "com.datastax.cassandra"   %   "cassandra-driver-core"    %   CassandraDriverVersion withSources(),
+  "org.scalaz.stream"        %%  "scalaz-stream"            %   ScalazStreamVersion    withSources(),
+  "io.reactivex"             %%  "rxscala"                  %   RxScala                withSources(),
+  "com.typesafe.akka"        %%  "akka-stream"              %   Akka                   withSources(),
+  "com.google.protobuf"      %   "protobuf-java"            %  "2.5.0"                 withSources(),
+  "com.chuusai"              %%  "shapeless"                %  "2.3.2"
   //"ch.qos.logback"         %   "logback-classic"          %   Logback //should be commented for releases
 )
 
 //2.1.3.1
 //JoinMongoSpec failed with specs2-core 3.6.4
 libraryDependencies ++= Seq(
-  "de.bwaldvogel"       %   "mongo-java-server" %   "1.4.4"   % "test" withSources(),
-  "org.cassandraunit"   %   "cassandra-unit"      % "3.0.0.1" % "test" excludeAll(ExclusionRule(organization = "ch.qos.logback")),
+  "de.bwaldvogel"       %   "mongo-java-server" %   "1.7.0"   % "test" withSources(),
+  "org.cassandraunit"   %   "cassandra-unit"    %   "3.0.0.1" % "test" excludeAll(ExclusionRule(organization = "ch.qos.logback")),
   "org.specs2"          %%  "specs2-core"       %   "2.4.17"  % "test" withSources(),
-  "org.scalatest"       %%  "scalatest"         %   "2.2.6"   % "test",
+  "org.scalatest"       %%  "scalatest"         %   "3.0.1"   % "test",
   "com.typesafe.akka"   %%  "akka-testkit"      %   Akka      % "test",
   "com.typesafe.akka"   %%  "akka-slf4j"        %   Akka      % "test"
 )

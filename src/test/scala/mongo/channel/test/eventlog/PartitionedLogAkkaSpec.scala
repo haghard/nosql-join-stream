@@ -50,7 +50,7 @@ class PartitionedLogAkkaSpec extends TestKit(ActorSystem("akka-log-stream"))
       val rows = (eventlog.Log[CassandraSource] from (queryByKey, actors.head, offset, maxPartitionSize))
         .source
         .runWith(Sink.seq)
-        .futureValue(cfg)
+        .futureValue
 
       session.close
       rows.map(_.getLong("sequence_nr")) must have size domainSize - offset
@@ -64,7 +64,7 @@ class PartitionedLogAkkaSpec extends TestKit(ActorSystem("akka-log-stream"))
 
       val rows = CassandraAsyncLog(session, 512, queryByKey, actors.head, offset, maxPartitionSize)
         .runWith(Sink.seq)
-        .futureValue(cfg)
+        .futureValue
 
       session.close
       rows.map(_.getLong("sequence_nr")) must have size domainSize - offset
