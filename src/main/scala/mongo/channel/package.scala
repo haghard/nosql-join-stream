@@ -178,7 +178,7 @@ package object channel {
      * Allows you to extract specified field from [[com.mongodb.DBObject]] or [[com.datastax.driver.core.Row]] by name
      *
      */
-    def column[B](name: String)(implicit converter: dbtypes.MongoTypeEncoder[B], tag: ClassTag[B]): ScalazStreamsOps[T, B] = {
+    def column[B](name: String)(implicit converter: dbtypes.MongoTypeReader[B], tag: ClassTag[B]): ScalazStreamsOps[T, B] = {
       import dbtypes._
       pipe(lift {
         case r: DBObject ⇒ r.get(name).as[B]
@@ -191,9 +191,9 @@ package object channel {
      * For case classes
      */
     import dbtypes._
-    def as[T: ClassTag: CassandraObjectParser: MongoObjectParser] = {
-      val cassandraParser = implicitly[CassandraObjectParser[T]]
-      val mongoParser = implicitly[MongoObjectParser[T]]
+    def as[T: ClassTag: CassandraRecordReader: MongoRecordParser] = {
+      val cassandraParser = implicitly[CassandraRecordReader[T]]
+      val mongoParser = implicitly[MongoRecordParser[T]]
       val fields = implicitly[ClassTag[T]].runtimeClass.getDeclaredFields.map(_.getName).toVector
       pipe(lift {
         case r: DBObject ⇒ mongoParser(r, fields, 0) //or  r.as[T]
