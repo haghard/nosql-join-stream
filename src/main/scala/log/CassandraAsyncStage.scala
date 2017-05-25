@@ -26,10 +26,10 @@ import join.cassandra.CassandraSource
 import scala.concurrent.{ Future, Promise }
 import scala.util.{ Failure, Success, Try }
 
-class CassandraAsyncLog(session: CassandraSource#Session, cassandraPageSize: Int = 512, query: String,
-                        key: String, offset: Long, maxPartitionSize: Long) extends GraphStage[SourceShape[Row]] {
+class CassandraAsyncStage(session: CassandraSource#Session, cassandraPageSize: Int = 512, query: String,
+                          key: String, offset: Long, maxPartitionSize: Long) extends GraphStage[SourceShape[Row]] {
 
-  val out: Outlet[Row] = Outlet("CassandraAsyncSource.out")
+  val out: Outlet[Row] = Outlet("CassandraAsyncStage.out")
 
   override val shape: SourceShape[Row] = SourceShape(out)
 
@@ -40,13 +40,13 @@ class CassandraAsyncLog(session: CassandraSource#Session, cassandraPageSize: Int
       var partitionIter = Option.empty[ResultSet]
       var onMessage: AsyncCallback[Try[ResultSet]] = _
 
-      private def navigatePartition(n: Long, max: Long) = n / max
+      private def partition(n: Long, max: Long) = n / max
 
       override def preStart(): Unit = {
         implicit val ec = materializer.executionContext
         onMessage = getAsyncCallback[Try[ResultSet]](onFinish)
         guavaToScala(session.executeAsync(new SimpleStatement(query, key,
-          navigatePartition(sequenceNr, maxPartitionSize): JLong, offset: JLong)
+          partition(sequenceNr, maxPartitionSize): JLong, offset: JLong)
           .setFetchSize(cassandraPageSize))).onComplete(onMessage.invoke)
       }
 
@@ -59,7 +59,7 @@ class CassandraAsyncLog(session: CassandraSource#Session, cassandraPageSize: Int
               push(out, iter.one)
             case Some(iter) if iter.isExhausted ⇒
               guavaToScala(session.executeAsync(new SimpleStatement(query, key,
-                navigatePartition(sequenceNr, maxPartitionSize): JLong, sequenceNr: JLong)
+                partition(sequenceNr, maxPartitionSize): JLong, sequenceNr: JLong)
                 .setFetchSize(cassandraPageSize))).onComplete(onMessage.invoke)
 
             case Some(iter) ⇒ guavaToScala(iter.fetchMoreResults).onComplete(onMessage.invoke)
@@ -93,8 +93,8 @@ class CassandraAsyncLog(session: CassandraSource#Session, cassandraPageSize: Int
   }
 }
 
-object CassandraAsyncLog {
+object CassandraAsyncStage {
   def apply(session: Session, cassandraPageSize: Int, cassandraQuery: String,
             key: String, offset: Long, maxPartitionSize: Long) =
-    Source.fromGraph(new CassandraAsyncLog(session, cassandraPageSize, cassandraQuery, key, offset, maxPartitionSize))
+    Source.fromGraph(new CassandraAsyncStage(session, cassandraPageSize, cassandraQuery, key, offset, maxPartitionSize))
 }

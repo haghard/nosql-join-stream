@@ -19,7 +19,7 @@ import akka.stream.scaladsl.Sink
 import akka.stream.{ ActorMaterializer, ActorMaterializerSettings }
 import akka.testkit.TestKit
 import join.cassandra.CassandraSource
-import log.CassandraAsyncLog
+import log.CassandraAsyncStage
 import mongo.channel.test.cassandra.DomainEnviroment
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.time.{ Millis, Span }
@@ -35,7 +35,7 @@ class PartitionedLogAkkaSpec extends TestKit(ActorSystem("akka-log-stream"))
     .withInputBuffer(buffer, buffer)
     .withDispatcher("akka.join-dispatcher")
   implicit val Mat = ActorMaterializer(settings)
-  implicit val dispatcher = system.dispatchers.lookup("akka.join-dispatcher")
+  implicit val ec = Mat.executionContext
 
   val cfg = PatienceConfig(timeout = scaled(Span(3000, Millis)), interval = scaled(Span(500, Millis)))
 
@@ -62,7 +62,7 @@ class PartitionedLogAkkaSpec extends TestKit(ActorSystem("akka-log-stream"))
         .addContactPointsWithPorts(cassandraHost)
         .withQueryOptions(queryOps).build connect "journal"
 
-      val rows = CassandraAsyncLog(session, 512, queryByKey, actors.head, offset, maxPartitionSize)
+      val rows = CassandraAsyncStage(session, 512, queryByKey, actors.head, offset, maxPartitionSize)
         .runWith(Sink.seq)
         .futureValue
 

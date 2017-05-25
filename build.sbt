@@ -36,7 +36,7 @@ val CassandraDriverVersion = "3.1.1"
 val ScalazStreamVersion = "0.8.5"
 val RxScala = "0.25.0" //doesn't work with 0.26.2, need to figure out
 val Logback = "1.1.2"
-val Akka = "2.4.16"
+val Akka = "2.5.2"
 
 val localMvnRepo = "/Volumes/Data/dev_build_tools/apache-maven-3.1.1/repository"
 
