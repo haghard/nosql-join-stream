@@ -7,7 +7,7 @@ organization := "com.haghard"
 
 name := "nosql-join-stream"
 
-version := "0.2.7"
+version := "0.2.8-SNAPSHOT"
 
 scalaVersion := "2.11.8"
 
@@ -38,7 +38,7 @@ val RxScala = "0.25.0" //doesn't work with 0.26.2, need to figure out
 val Logback = "1.1.2"
 val Akka = "2.5.17"
 
-val localMvnRepo = "/Volumes/Data/dev_build_tools/apache-maven-3.1.1/repository"
+val localMvnRepo = "/Volumes/dev/apache-maven-3.1.1/repository"
 
 scalariformSettings
 
@@ -96,7 +96,7 @@ licenses += ("Apache-2.0", url("http://www.apache.org/licenses/"))
 
 bintrayOrganization in bintray := Some("haghard")
 
-repository in bintray := "releases" //"snapshot"
+repository in bintray := "snapshot" //"releases"
 
 publishMavenStyle := true
 //publishTo := Some(Resolver.file("file",  new File(localMvnRepo)))
@@ -145,5 +145,5 @@ inConfig(Test)(compileInputs.in(compile) <<= compileInputs.in(compile).dependsOn
 //bintray:: tab
 //bintray::publish
 
-//git tag -a v0.2.6 -m 'version 0.2.6'
+//git tag -a v0.2.7 -m 'version 0.2.7'
 //git push origin master --tags
