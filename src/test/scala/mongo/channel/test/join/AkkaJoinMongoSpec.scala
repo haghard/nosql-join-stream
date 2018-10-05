@@ -27,7 +27,6 @@ import join.mongo.MongoSource
 import mongo._
 import mongo.channel.test.mongo.MongoIntegrationEnv._
 import mongo.channel.test.mongo.{ MongoDbEnviroment, MongoIntegrationEnv }
-import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.{ BeforeAndAfterAll, BeforeAndAfterEach, MustMatchers, WordSpecLike }
 
 import scala.util.{ Failure, Success }

@@ -36,7 +36,7 @@ val CassandraDriverVersion = "3.1.1"
 val ScalazStreamVersion = "0.8.5"
 val RxScala = "0.25.0" //doesn't work with 0.26.2, need to figure out
 val Logback = "1.1.2"
-val Akka = "2.5.2"
+val Akka = "2.5.17"
 
 val localMvnRepo = "/Volumes/Data/dev_build_tools/apache-maven-3.1.1/repository"
 
@@ -57,7 +57,7 @@ libraryDependencies ++= Seq(
   "org.scalaz.stream"        %%  "scalaz-stream"            %   ScalazStreamVersion    withSources(),
   "io.reactivex"             %%  "rxscala"                  %   RxScala                withSources(),
   "com.typesafe.akka"        %%  "akka-stream"              %   Akka                   withSources(),
-  "com.google.protobuf"      %   "protobuf-java"            %  "2.5.0"                 withSources(),
+  "com.google.protobuf"      %   "protobuf-java"            %  "3.5.1"                 withSources(),
   "com.chuusai"              %%  "shapeless"                %  "2.3.2"
   //"ch.qos.logback"         %   "logback-classic"          %   Logback //should be commented for releases
 )
